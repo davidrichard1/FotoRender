@@ -1,0 +1,10 @@
+[tool.pyright]
+include = [
+    "storage/image_processor.py",
+    "assets/loras.py", 
+    "database/client.py",
+    "database/models.py",
+    "*.py"
+]
+
+typeCheckingMode = "strict" 

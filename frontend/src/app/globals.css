@@ -1,0 +1,301 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Clean dark mode select styling */
+select option {
+  background-color: #161b22 !important;
+  color: white !important;
+  padding: 8px 12px !important;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #21262d !important;
+  color: white !important;
+}
+
+/* Simple clean scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+@layer base {
+  html {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      sans-serif;
+    height: 100%;
+  }
+
+  body {
+    background-color: #0d1117;
+    color: #e6edf3;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
+  /* Only prevent scrolling on desktop */
+  @media (min-width: 1024px) {
+    html,
+    body {
+      overflow: hidden;
+    }
+  }
+
+  /* Allow modals and overlays to scroll */
+  .modal-overlay,
+  [role='dialog'],
+  [data-radix-portal] {
+    overflow: auto !important;
+  }
+
+  /* Ensure Next.js root is also full height */
+  #__next {
+    height: 100%;
+  }
+
+  /* Only prevent scrolling on desktop */
+  @media (min-width: 1024px) {
+    #__next {
+      overflow: hidden;
+    }
+  }
+
+  /* Simple focus styling */
+  *:focus-visible {
+    outline: 1px solid #484f58;
+    outline-offset: 1px;
+  }
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Touch scrolling optimizations for iPad and mobile devices */
+.touch-scroll-vertical {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+/* Prevent horizontal scrolling on touch devices */
+.no-horizontal-scroll {
+  overflow-x: hidden;
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
+}
+
+/* Textarea optimization for mobile/iPad */
+.textarea-no-scroll {
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin; /* Firefox - thin scrollbar */
+  -ms-overflow-style: auto; /* IE and Edge */
+}
+
+.textarea-no-scroll::-webkit-scrollbar {
+  width: 6px; /* Thin scrollbar */
+}
+
+.textarea-no-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.textarea-no-scroll::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+
+.textarea-no-scroll::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Auto-expanding textarea */
+.textarea-auto-expand {
+  resize: none;
+  overflow: hidden;
+  min-height: 60px;
+  max-height: 200px;
+  field-sizing: content; /* Modern browsers */
+}
+
+/* Form input improvements for mobile/iPad */
+input[type='number'],
+input[type='text'],
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 6px;
+}
+
+/* Prevent zoom on iOS when focusing inputs */
+@media screen and (max-width: 1024px) {
+  input[type='number'],
+  input[type='text'],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Better focus states for dark theme */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: #6b7280 !important;
+  box-shadow: 0 0 0 1px rgba(107, 114, 128, 0.4),
+    0 0 8px rgba(107, 114, 128, 0.1) !important;
+}
+
+/* Hover states for inputs */
+input:hover:not(:focus),
+textarea:hover:not(:focus),
+select:hover:not(:focus) {
+  border-color: #484f58 !important;
+}
+
+/* Dark theme focus utility class */
+.focus-subtle {
+  transition: all 0.2s ease-in-out;
+}
+
+.focus-subtle:focus {
+  outline: none !important;
+  border-color: #6b7280 !important;
+  box-shadow: 0 0 0 1px rgba(107, 114, 128, 0.4),
+    0 0 8px rgba(107, 114, 128, 0.1) !important;
+}
+
+/* Dynamic container-based layouts */
+@container (max-width: 300px) {
+  .param-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@container (min-width: 300px) {
+  .param-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* Fluid responsive design */
+.generation-panel {
+  container-type: inline-size;
+}
+
+/* Accordion animations */
+.accordion-content {
+  transition: all 0.2s ease-in-out;
+  overflow: hidden;
+}
+
+.accordion-content[data-collapsed='true'] {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+}
+
+.accordion-content[data-collapsed='false'] {
+  max-height: 2000px;
+  opacity: 1;
+}
+
+/* Improve touch targets on mobile */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Mobile grid adjustments */
+@media (max-width: 640px) {
+  .space-y-4 > * + * {
+    margin-top: 1rem !important;
+  }
+
+  .param-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .accordion-header {
+    font-size: 0.9rem;
+    padding: 12px 16px;
+  }
+}
+
+/* Full height layout optimizations */
+.full-height-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Panel height utilities */
+.panel-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  flex-shrink: 0;
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.panel-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+/* Responsive height utilities */
+@media (min-width: 1024px) {
+  .lg-full-height {
+    height: calc(100vh - 120px);
+  }
+}
+
+@media (max-width: 1023px) {
+  .mobile-panel-height {
+    min-height: 50vh;
+    max-height: 80vh;
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "foto-render-backend",
+  "version": "2.0.0",
+  "description": "AI image generation backend - Queue-based architecture with robust PowerShell management",
+  "main": "api_v2.py",
+  "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File .\\start_system.ps1",
+    "start:port": "powershell -ExecutionPolicy Bypass -File .\\start_system.ps1 -Port",
+    "start:verbose": "powershell -ExecutionPolicy Bypass -File .\\start_system.ps1 -Verbose",
+    "start:skip-cleanup": "powershell -ExecutionPolicy Bypass -File .\\start_system.ps1 -SkipCleanup",
+    "stop": "powershell -ExecutionPolicy Bypass -File .\\cleanup.ps1",
+    "restart": "powershell -ExecutionPolicy Bypass -File .\\restart.ps1",
+    "status": "powershell -ExecutionPolicy Bypass -File .\\status.ps1",
+    "status:detailed": "powershell -ExecutionPolicy Bypass -File .\\status.ps1 -Detailed",
+    "health": "curl -s http://localhost:8000/health",
+    "queue": "curl -s http://localhost:8000/queue/stats",
+    "api:start": "python api_v2.py",
+    "api:dev": "python api_v2.py --reload",
+    "api:port": "python api_v2.py --port",
+    "worker:start": "python start_worker.py",
+    "worker:gpu": "python local_gpu_worker.py",
+    "redis:ping": "docker exec foto-render-redis redis-cli ping",
+    "redis:logs": "docker logs foto-render-redis",
+    "db:create": "python -c \"import asyncio; from database.sqlalchemy_client import get_db_client; asyncio.run(get_db_client().create_tables())\"",
+    "db:seed": "python seed_database.py",
+    "db:test": "python test_sqlalchemy.py",
+    "cleanup:nuclear": "powershell -ExecutionPolicy Bypass -File .\\cleanup.ps1 -Verbose",
+    "emergency:fix": "npm run cleanup:nuclear && timeout /t 5 /nobreak && npm run start:verbose"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidrichard1/foto-render.git"
+  },
+  "author": "David Richard",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.9.0"
+  },
+  "os": [
+    "win32",
+    "darwin",
+    "linux"
+  ]
+}

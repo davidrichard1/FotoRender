@@ -1,0 +1,321 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import NextImage from 'next/image'
+import { Image as ImageType } from '@/types/image'
+
+interface ImageViewerProps {
+  image: ImageType
+  onClose: () => void
+  onToggleFavorite: (imageId: string, isFavorite: boolean) => void
+  onEdit: (imageId: string) => void
+}
+
+export function ImageViewer({
+  image,
+  onClose,
+  onToggleFavorite,
+  onEdit
+}: ImageViewerProps) {
+  const [showDetails, setShowDetails] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
+  const imageRef = useRef<HTMLImageElement>(null)
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          onClose()
+          break
+        case 'i':
+        case 'I':
+          setShowDetails(!showDetails)
+          break
+        case 'f':
+        case 'F':
+          onToggleFavorite(image.id, !image.isFavorite)
+          break
+        default:
+          // No action for other keys
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [image.id, image.isFavorite, showDetails, onClose, onToggleFavorite])
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [])
+
+  const handleImageLoad = () => {
+    setImageLoaded(true)
+    setImageError(false)
+  }
+
+  const handleImageError = () => {
+    setImageLoaded(false)
+    setImageError(true)
+  }
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose()
+    }
+  }
+
+  // Handle touch events for mobile swipe down to close
+  const [touchStart, setTouchStart] = useState(0)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.touches[0].clientY)
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEnd = e.changedTouches[0].clientY
+    const diff = touchStart - touchEnd
+
+    // If swiped down more than 100px, close the modal
+    if (diff < -100) {
+      onClose()
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Enhanced Background overlay for easier closing */}
+      <div
+        className="absolute inset-0 cursor-pointer"
+        onClick={handleBackgroundClick}
+      />
+
+      {/* Mobile-friendly close button - larger and always visible */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-30 p-3 md:p-2 rounded-full bg-black/70 hover:bg-black/90 text-white transition-all duration-200 backdrop-blur-sm border border-white/20"
+        title="Close (Escape or swipe down)"
+      >
+        <svg
+          className="w-6 h-6 md:w-5 md:h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+
+      {/* Controls - simplified without delete button */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="p-2 rounded-lg bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm border border-white/10"
+          title="Toggle Details (I)"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </button>
+
+        <button
+          onClick={() => onToggleFavorite(image.id, !image.isFavorite)}
+          className="p-2 rounded-lg bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm border border-white/10"
+          title={`${image.isFavorite ? 'Remove from' : 'Add to'} Favorites (F)`}
+        >
+          <svg
+            className="w-5 h-5"
+            fill={image.isFavorite ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
+          </svg>
+        </button>
+
+        <button
+          onClick={() => onEdit(image.id)}
+          className="p-2 rounded-lg bg-black/50 hover:bg-black/70 text-white transition-colors backdrop-blur-sm border border-white/10"
+          title="Edit Image"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* Image container - truly maximized */}
+      <div
+        className="absolute inset-0 flex items-center justify-center p-2 md:p-4"
+        style={{
+          paddingTop: '60px',
+          paddingBottom: showDetails ? '280px' : '60px'
+        }}
+      >
+        <div className="relative w-full h-full">
+          {!imageLoaded && !imageError && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+            </div>
+          )}
+
+          {imageError && (
+            <div className="absolute inset-0 flex items-center justify-center text-white">
+              <div className="text-center">
+                <svg
+                  className="w-16 h-16 mx-auto mb-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <p className="text-lg font-semibold">Failed to load image</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  The image could not be displayed
+                </p>
+              </div>
+            </div>
+          )}
+
+          <NextImage
+            ref={imageRef}
+            src={image.url}
+            alt={image.title}
+            fill
+            sizes="100vw"
+            onLoad={handleImageLoad}
+            onError={() => handleImageError()}
+            className={`
+              object-contain transition-opacity duration-300
+              ${imageLoaded ? 'opacity-100' : 'opacity-0'}
+            `}
+            draggable={false}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          />
+        </div>
+      </div>
+
+      {/* Mobile swipe hint */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 md:hidden">
+        <div className="bg-black/50 backdrop-blur-sm rounded-full px-4 py-2 text-white text-sm border border-white/20">
+          Swipe down to close
+        </div>
+      </div>
+
+      {/* Details panel */}
+      {showDetails && (
+        <div className="absolute bottom-4 left-4 right-4 z-20">
+          <div className="bg-black/80 backdrop-blur-sm rounded-xl p-6 text-white max-h-64 overflow-y-auto border border-white/20">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-yellow-300">
+                  {image.title}
+                </h3>
+                {image.description && (
+                  <p className="text-sm text-gray-300 mb-4">
+                    {image.description}
+                  </p>
+                )}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Created:</span>
+                    <span>
+                      {new Date(image.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Platform:</span>
+                    <span>{image.platform}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Favorite:</span>
+                    <span>{image.isFavorite ? '⭐ Yes' : 'No'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                {image.tags.length > 0 && (
+                  <div className="mb-4">
+                    <span className="text-gray-400 text-sm mb-2 block">
+                      Tags:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {image.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 rounded-full text-xs font-medium border"
+                          style={{
+                            backgroundColor: `${tag.color}20`,
+                            color: tag.color,
+                            borderColor: `${tag.color}40`
+                          }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-gray-400 space-y-1">
+                  <div className="font-medium text-gray-300">Controls:</div>
+                  <div>• Desktop: Ctrl+scroll wheel to zoom</div>
+                  <div>• Mobile: Pinch to zoom</div>
+                  <div>• Keyboard: I for details, Esc to close</div>
+                  <div>• Mobile: Swipe down to close</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
