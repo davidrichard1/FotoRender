@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import NextImage from 'next/image'
 import { Image as ImageType } from '@/types/image'
+import { SmartImage } from './SmartImage'
 
 interface ImageViewerProps {
   image: ImageType
@@ -56,11 +57,21 @@ export function ImageViewer({
   }, [])
 
   const handleImageLoad = () => {
+    console.log('ImageViewer: Image loaded successfully!', {
+      imageId: image.id,
+      title: image.title.substring(0, 30) + '...',
+      url: image.url
+    })
     setImageLoaded(true)
     setImageError(false)
   }
 
   const handleImageError = () => {
+    console.error('ImageViewer: Image failed to load!', {
+      imageId: image.id,
+      title: image.title.substring(0, 30) + '...',
+      url: image.url
+    })
     setImageLoaded(false)
     setImageError(true)
   }
@@ -100,22 +111,22 @@ export function ImageViewer({
         onClick={handleBackgroundClick}
       />
 
-      {/* Mobile-friendly close button - larger and always visible */}
+      {/* Enhanced close button - always visible and prominent */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-30 p-3 md:p-2 rounded-full bg-black/70 hover:bg-black/90 text-white transition-all duration-200 backdrop-blur-sm border border-white/20"
-        title="Close (Escape or swipe down)"
+        className="fixed top-4 right-4 z-[100] p-3 rounded-full bg-red-600/80 hover:bg-red-600 text-white transition-all duration-200 backdrop-blur-sm border border-red-500/50 shadow-lg"
+        title="Close (Escape)"
       >
         <svg
-          className="w-6 h-6 md:w-5 md:h-5"
+          className="w-6 h-6"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          strokeWidth={3}
         >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={2}
             d="M6 18L18 6M6 6l12 12"
           />
         </svg>
@@ -223,20 +234,18 @@ export function ImageViewer({
             </div>
           )}
 
-          <NextImage
+          {/* Use SmartImage for better CORS and caching handling */}
+          <SmartImage
             ref={imageRef}
             src={image.url}
+            fallbackSrc={image.fallbackUrl}
             alt={image.title}
-            fill
-            sizes="100vw"
             onLoad={handleImageLoad}
             onError={() => handleImageError()}
-            className={`
-              object-contain transition-opacity duration-300
-              ${imageLoaded ? 'opacity-100' : 'opacity-0'}
-            `}
+            className="absolute inset-0 w-full h-full object-contain"
             draggable={false}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            forceNativeImg={true}
           />
         </div>
       </div>

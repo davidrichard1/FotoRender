@@ -1433,19 +1433,21 @@ app.add_middleware(
 # Data Models
 class GenerationRequest(BaseModel):
     prompt: str
-    negative_prompt: str = "plastic skin, cartoon, wax figure, hyper-defined abs, airbrush, symmetrical pose, dead eyes, unnatural smile, low-res, female, feminine"
-    width: int = 680
+    negative_prompt: str = ""  # Updated to match api_v2.py
+    width: int = 1024  # Updated to match api_v2.py
     height: int = 1024
-    num_inference_steps: int = 39
-    guidance_scale: float = 6.0
+    num_inference_steps: int = 30  # Updated to match api_v2.py
+    guidance_scale: float = 7.0  # Updated to match api_v2.py
     seed: int = -1
     sampler: str = "DPM++ 2M SDE Karras"
+    model_name: str  # Added to match api_v2.py - REQUIRED for frontend compatibility
+    loras: list = []  # List of {"filename": str, "scale": float} dicts
+    clip_skip: Optional[int] = None  # CLIP skip parameter for text encoder (optional)
+    user_id: Optional[str] = None  # Added to match api_v2.py
+    # Legacy fields (optional for backward compatibility)
     force_chunking: bool = False  # For testing long prompt processing
     use_fp8: bool = False  # Real FP8 precision toggle
-    # LoRA support
-    loras: list = []  # List of {"filename": str, "scale": float} dicts
     auto_unload_loras: bool = True  # Automatically unload LoRAs after generation
-    clip_skip: Optional[int] = None  # CLIP skip parameter for text encoder (optional)
 
 class GenerationResponse(BaseModel):
     image: str  # base64 encoded image
@@ -2822,6 +2824,12 @@ async def upscale_image(request: dict):
 async def create_favorite_prompt(request: CreateFavoritePromptRequest):
     """Create a new favorite prompt with image upload"""
     try:
+        # Debug logging
+        logger.info(f"🔍 Creating favorite prompt:")
+        logger.info(f"   Title: {request.title}")
+        logger.info(f"   Model filename: {request.model_filename}")
+        logger.info(f"   Image data length: {len(request.image_data) if request.image_data else 0}")
+        
         # Decode base64 image
         image_bytes = base64.b64decode(request.image_data)
         

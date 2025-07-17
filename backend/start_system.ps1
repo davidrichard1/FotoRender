@@ -35,8 +35,8 @@ Write-Host ""
 Write-Host "STEP 3: STARTING API SERVER..." -ForegroundColor Magenta
 Write-Host "Starting API v2 on port $Port..." -ForegroundColor Yellow
 
-# Start API directly - no wrapper BS
-Start-Process -FilePath "python" -ArgumentList "api_v2.py", "--port", "$Port", "--host", "0.0.0.0" -WindowStyle Hidden
+# Start API using simple batch file
+Start-Process -FilePath "cmd" -ArgumentList "/c", "start_api.bat" -WindowStyle Hidden
 
 # Wait a moment for startup
 Start-Sleep -Seconds 3
@@ -77,9 +77,8 @@ if (-not $apiReady) {
     Write-Host "STEP 4: STARTING GPU WORKER..." -ForegroundColor Magenta
     Write-Host "Starting local GPU worker on GPU $WorkerGpuId..." -ForegroundColor Yellow
     
-    # Start worker directly
-    $env:CUDA_VISIBLE_DEVICES = $WorkerGpuId
-    Start-Process -FilePath "python" -ArgumentList "local_gpu_worker.py" -WindowStyle Hidden
+    # Start worker using simple batch file
+    Start-Process -FilePath "cmd" -ArgumentList "/c", "start_worker.bat" -WindowStyle Hidden
     
     Write-Host "GPU worker started in background" -ForegroundColor Green
     Write-Host ""

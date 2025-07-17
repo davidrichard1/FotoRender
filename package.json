@@ -17,11 +17,19 @@
     "real-time"
   ],
   "scripts": {
-    "start": "cd backend && npm run start && cd ../frontend && npm run dev",
+    "start": "node choose-api.js",
+    "start:with-frontend": "concurrently \"node choose-api.js\" \"npm run start:frontend\"",
+    "start:mono": "cd backend && python main.py --port 8000",
+    "start:queue": "cd backend && python api_v2.py --port 8000",
     "start:backend": "cd backend && npm run start",
     "start:frontend": "cd frontend && npm run dev",
     "start:robust": "cd backend && powershell -ExecutionPolicy Bypass -File .\\start_system.ps1",
     "start:quick": "cd backend && .\\quick_start.bat",
+    "fix:deps": "cd backend && .\\fix_dependencies.bat",
+    "fix:venv": "cd backend && .\\recreate_venv.bat",
+    "install:global": "cd backend && .\\install_global.bat",
+    "install:fixed": "cd backend && .\\install_global_fixed.bat",
+    "test:python": "cd backend && .\\test_python_clean.bat",
     "stop": "cd backend && npm run stop",
     "restart": "cd backend && npm run restart",
     "status": "cd backend && npm run status",
@@ -29,7 +37,7 @@
     "cleanup": "cd backend && npm run stop",
     "cleanup:nuclear": "cd backend && npm run cleanup:nuclear",
     "emergency:fix": "cd backend && npm run emergency:fix",
-    "dev": "echo '🚀 Starting Foto Render (Robust Mode)...' && npm run start:robust",
+    "dev": "npm run start:with-frontend",
     "dev:manual": "echo '⚠️ Manual startup - run backend and frontend separately:' && echo '1. cd backend && npm run start' && echo '2. cd frontend && npm run dev'",
     "dev:frontend-only": "cd frontend && npm run dev",
     "dev:backend-only": "cd backend && npm run start",
@@ -59,7 +67,7 @@
     "backend:clean": "cd backend && rm -rf __pycache__ && find . -name '*.pyc' -delete 2>/dev/null || echo 'Backend cleaned'",
     "system:setup": "echo '🔧 Setting up Foto Render (v2.0 - Robust Edition)...' && npm run install:all && echo '✅ Setup complete! Use: npm start'",
     "system:full-restart": "npm run cleanup:nuclear && timeout /t 10 /nobreak >nul 2>&1 || sleep 10 && npm run start:robust",
-    "help": "node -e \"console.log('\\n🚀 Foto Render v2.0 - Available Commands:\\n'); console.log('🚀 npm start           - Start entire system (recommended)'); console.log('🧹 npm run cleanup     - Stop all processes'); console.log('📊 npm run status      - Check system health'); console.log('🔄 npm run restart     - Clean restart'); console.log('🆘 npm run emergency:fix - Nuclear restart'); console.log('\\n📖 Full docs: backend/README_SCRIPTS.md\\n');\""
+    "help": "node -e \"console.log('\\n🎨 Foto Render v2.0 - Available Commands:\\n'); console.log('🚀 npm start                 - Choose API & start backend'); console.log('🌐 npm run start:with-frontend - Choose API & start both backend+frontend'); console.log('🏠 npm run start:mono        - Direct start monolithic API'); console.log('⚡ npm run start:queue       - Direct start queue-based API'); console.log('🔧 npm run test:python       - Test Python 3.13 installation'); console.log('🌟 npm run install:fixed     - Install with Python 3.13 (bypass PATH)'); console.log('🧹 npm run cleanup           - Stop all processes'); console.log('📊 npm run status            - Check system health'); console.log('\\n💡 For steady power (no light flicker): choose Monolithic'); console.log('💡 For multiple users: choose Queue-based'); console.log('💡 If PATH issues: use install:fixed then start\\n');\""
   },
   "dependencies": {
     "next": "^15.3.4",

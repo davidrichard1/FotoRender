@@ -3,13 +3,14 @@
 import { useState, useCallback, useEffect, Suspense } from 'react'
 import NextImage from 'next/image'
 import { ImageViewer } from '@/components/image'
+import { CachedImage } from '@/components/image/CachedImage'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Accordion } from '@/components/ui/accordion'
 import { JobProgress } from '@/components/ui/JobProgress'
 import { useJobStatus } from '@/hooks/useJobStatus'
 import { useScrollSync } from '@/hooks/useScrollSync'
-import { generateImage, cancelJob, GenerationRequest } from '@/lib/api'
+import { generateImage, cancelJob, GenerationRequest, savePrompt } from '@/lib/api'
 import { createDataPromises, refreshData } from '@/lib/data-promises'
 import {
   DataErrorBoundary,
@@ -22,6 +23,7 @@ import {
   EmbeddingSelector,
   VaeSelector
 } from '@/components/AssetSelectors'
+import { useToast } from '@/components/ui/toast'
 
 interface GeneratedImage {
   id: string
@@ -71,6 +73,7 @@ interface SelectedLora {
 }
 
 export default function HomePage() {
+  const { showSuccess, showError, ToastContainer } = useToast()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(
     null
@@ -143,6 +146,7 @@ export default function HomePage() {
   )
   const [currentVae, setCurrentVae] = useState<string>('default')
   const [isUpscaling, setIsUpscaling] = useState(false)
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [isModelSwitching, setIsModelSwitching] = useState(false)
 
@@ -453,7 +457,8 @@ export default function HomePage() {
           filename: lora.filename,
           scale: lora.scale
         })),
-        ...(params.clip_skip !== null && { clip_skip: params.clip_skip })
+        ...(params.clip_skip !== null && { clip_skip: params.clip_skip }),
+        model_name: currentModel || params.model || '' // Always include model_name
       }
 
       setLastGenerationParams(requestBody)
@@ -464,10 +469,38 @@ export default function HomePage() {
       }
 
       const jobData = response.data
-      setCurrentJobId(jobData.job_id)
-      setLoadingMessage(
-        `Queued successfully! Job ID: ${jobData.job_id.slice(0, 8)}...`
-      )
+      if (jobData && jobData.job_id) {
+        setCurrentJobId(jobData.job_id)
+        setLoadingMessage(
+          `Queued successfully! Job ID: ${jobData.job_id.slice(0, 8)}...`
+        )
+      } else if (jobData && jobData.image) {
+        // Monolithic mode: display the image directly
+        setGeneratedImage({
+          id: `generated-${Date.now()}`,
+          url: `data:image/png;base64,${jobData.image}`,
+          originalUrl: `data:image/png;base64,${jobData.image}`,
+          title: 'Generated Image',
+          description: 'Generated in monolithic mode',
+          platform: 'AI Generated (Monolith)',
+          isPrivate: false,
+          isFavorite: false,
+          userId: 'current-user',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isUpscaled: false,
+          originalImageUrl: `data:image/png;base64,${jobData.image}`,
+          tags: [
+            { name: 'AI Generated', color: '#f59e0b' },
+            { name: 'Monolith', color: '#10b981' }
+          ],
+          parameters: jobData.parameters || {}
+        })
+        setLoadingMessage('Image generated successfully!')
+      } else {
+        setCurrentJobId(null)
+        setLoadingMessage('Image generation started (monolithic mode or unknown job id).')
+      }
       setIsGenerating(false)
     } catch (err) {
       console.error('❌ Failed to queue generation:', err)
@@ -477,7 +510,7 @@ export default function HomePage() {
       setIsGenerating(false)
       setLoadingMessage('')
     }
-  }, [params, selectedLoras])
+  }, [params, selectedLoras, currentModel, params.model])
 
   const handleCancelJob = useCallback(async () => {
     if (!currentJobId) return
@@ -497,6 +530,45 @@ export default function HomePage() {
       handleGenerate()
     }
   }, [lastGenerationParams, handleGenerate])
+
+  const handleSavePrompt = async () => {
+    if (!generatedImage) return
+    setIsSavingPrompt(true)
+    try {
+      const imagePayload = generatedImage.url.startsWith('data:image')
+        ? { image_base64: generatedImage.url }
+        : { image_url: generatedImage.url }
+
+      const payload = {
+        title: generatedImage.title || 'Untitled',
+        prompt: generatedImage.parameters.prompt,
+        negative_prompt: generatedImage.parameters.negative_prompt,
+        description: generatedImage.description || '',
+        width: generatedImage.parameters.width,
+        height: generatedImage.parameters.height,
+        steps: generatedImage.parameters.steps,
+        guidance_scale: generatedImage.parameters.guidance_scale,
+        seed: generatedImage.parameters.seed,
+        sampler: generatedImage.parameters.sampler,
+        clip_skip: generatedImage.parameters.clip_skip,
+        loras_used: selectedLoras.map((l) => ({ filename: l.filename, scale: l.scale })),
+        model_name: generatedImage.parameters.model,
+        ...imagePayload,
+        is_public: false
+      }
+
+      const { error } = await savePrompt(payload as any)
+      if (error) {
+        showError(`Failed to save prompt: ${error}`)
+      } else {
+        showSuccess('Prompt saved successfully!')
+      }
+    } catch (err: any) {
+      showError(`Error saving prompt: ${err.message || err}`)
+    } finally {
+      setIsSavingPrompt(false)
+    }
+  }
 
   // Initialize optimized scroll synchronization
   useScrollSync()
@@ -818,9 +890,14 @@ export default function HomePage() {
 
               {/* Generate Button - Fixed at bottom */}
               <div className="p-4 md:p-6 pt-4 mt-auto border-t border-[#30363D] bg-[#161B22] flex-shrink-0">
+                {!currentModel && (
+                  <div className="p-2 bg-yellow-500/20 border border-yellow-500/30 rounded text-yellow-700 text-xs mb-2">
+                    Please select a model before generating.
+                  </div>
+                )}
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || jobIsLoading || !!currentJobId}
+                  disabled={isGenerating || jobIsLoading || !!currentJobId || !currentModel}
                   className="w-full py-2.5 px-4 bg-[#238636] hover:bg-[#2ea043] disabled:bg-[#30363D] disabled:text-gray-500 text-white text-sm font-medium rounded-md transition-colors flex items-center justify-center space-x-2 border border-[#238636] hover:border-[#2ea043] disabled:border-[#30363D]"
                 >
                   {(() => {
@@ -866,6 +943,25 @@ export default function HomePage() {
                 <h2 className="text-lg font-medium text-white">
                   Generated Image
                 </h2>
+                {generatedImage && (
+                  <button
+                    onClick={handleSavePrompt}
+                    disabled={isSavingPrompt}
+                    className="px-3 py-1 bg-[#238636] hover:bg-[#2ea043] disabled:bg-[#30363D] disabled:text-gray-500 text-white rounded text-sm font-medium border border-[#238636] hover:border-[#2ea043] disabled:border-[#30363D] transition-colors flex items-center space-x-1"
+                  >
+                    {isSavingPrompt ? (
+                      <>
+                        <Spinner className="w-4 h-4" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>💾</span>
+                        <span>Save Prompt</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               <div className="flex-1 px-6 pb-6 lg:overflow-y-auto">
@@ -1100,6 +1196,7 @@ export default function HomePage() {
           </div>
         )}
       </div>
+      <ToastContainer />
     </DataErrorBoundary>
   )
 }

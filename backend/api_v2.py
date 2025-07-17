@@ -48,6 +48,7 @@ class GenerationRequest(BaseModel):
     guidance_scale: float = 7.0
     seed: int = -1
     sampler: str = "DPM++ 2M SDE Karras"
+    model_name: str  # Add the missing model_name field!
     loras: list = []
     clip_skip: Optional[int] = None
     user_id: Optional[str] = None
@@ -774,6 +775,246 @@ async def generate_legacy():
         "message": "Use /generate endpoint with queue-based processing"
     }
 
+# ===== FAVORITE PROMPT ENDPOINTS =====
+
+class FavoritePromptCreate(BaseModel):
+    """Request schema for saving a generated prompt and its image"""
+    title: str
+    prompt: str
+    negative_prompt: Optional[str] = ""
+    description: Optional[str] = None
+    # Generation parameters
+    width: int
+    height: int
+    steps: int
+    guidance_scale: float
+    seed: int
+    sampler: str
+    clip_skip: Optional[int] = None
+    loras_used: Optional[List[Dict[str, Any]]] = None
+    model_name: Optional[str] = None
+    # Image data
+    image_base64: Optional[str] = None  # PNG/JPEG encoded as base64 string
+    image_url: Optional[str] = None  # Alternative: URL of existing image
+    is_public: bool = False
+
+class FavoritePromptSummary(BaseModel):
+    """Lightweight response for list views"""
+    id: str
+    title: str
+    prompt: str
+    negative_prompt: Optional[str]
+    image_url: str
+    image_r2_url: Optional[str] = None  # Add R2 URL as fallback
+    thumbnail_url: Optional[str] = None
+    created_at: str
+
+class FavoritePromptDetail(FavoritePromptSummary):
+    """Detailed prompt info"""
+    description: Optional[str]
+    parameters: Dict[str, Any]
+    loras_used: Optional[List[Dict[str, Any]]]
+    model_name: Optional[str]
+    tags: List[str]
+    is_public: bool
+
+
+@app.post("/favorite-prompts", response_model=FavoritePromptDetail)
+async def save_prompt(payload: FavoritePromptCreate):
+    """Save a generated prompt along with its image to R2 & DB"""
+    try:
+        import base64, re, aiohttp
+
+        image_bytes: bytes
+        if payload.image_base64:
+            # Clean header if present and decode
+            base64_data = re.sub('^data:image/\\w+;base64,', '', payload.image_base64)
+            image_bytes = base64.b64decode(base64_data)
+        elif payload.image_url:
+            # Fetch image from URL
+            async with aiohttp.ClientSession() as session_http:
+                async with session_http.get(payload.image_url) as resp:
+                    if resp.status != 200:
+                        raise HTTPException(status_code=400, detail="Failed to fetch image from URL")
+                    image_bytes = await resp.read()
+        else:
+            raise HTTPException(status_code=400, detail="Either image_base64 or image_url must be provided")
+
+        # Upload to R2 with a human-friendly file name: <timestamp>_<slug>_<8-char uuid>.png
+        from storage.r2_client import R2StorageClient  # Lazy import to avoid circular deps
+        from datetime import datetime
+
+        # Create slug from title (letters, numbers, dashes/underscores only)
+        slug_raw = payload.title.strip().lower()
+        slug = re.sub(r"[^a-z0-9_-]+", "-", slug_raw)[:60].strip("-") or "prompt"
+
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        short_uuid = uuid.uuid4().hex[:8]
+        custom_filename = f"{timestamp}_{slug}_{short_uuid}.png"
+
+        r2_client = R2StorageClient()
+        upload_info = r2_client.upload_image(image_bytes, folder="prompts", filename=custom_filename)
+
+        # Insert into DB
+        db_client = await get_db_client()
+        async with db_client.get_session() as session:
+            from database.sqlalchemy_models import FavoritePrompt
+            new_prompt = FavoritePrompt(
+                id=str(uuid.uuid4()),
+                title=payload.title,
+                prompt=payload.prompt,
+                negative_prompt=payload.negative_prompt,
+                description=payload.description,
+                width=payload.width,
+                height=payload.height,
+                steps=payload.steps,
+                guidance_scale=payload.guidance_scale,
+                seed=payload.seed,
+                sampler=payload.sampler,
+                clip_skip=payload.clip_skip,
+                loras_used=payload.loras_used,
+                image_r2_key=upload_info["r2_key"],
+                image_r2_url=upload_info["r2_url"],
+                image_cdn_url=upload_info.get("cdn_url"),
+                image_width=upload_info["width"],
+                image_height=upload_info["height"],
+                image_size_bytes=upload_info["size_bytes"],
+                image_format=upload_info["content_type"].split("/")[-1],
+                thumbnail_r2_key=upload_info.get("thumbnail", {}).get("r2_key") if upload_info.get("thumbnail") else None,
+                thumbnail_cdn_url=upload_info.get("thumbnail", {}).get("cdn_url") if upload_info.get("thumbnail") else None,
+                tags=[],
+                category=None,
+                is_public=payload.is_public,
+                is_featured=False,
+                model_id=None  # To be resolved later
+            )
+            session.add(new_prompt)
+            await session.commit()
+            await session.refresh(new_prompt)
+
+            result = FavoritePromptDetail(
+                id=new_prompt.id,
+                title=new_prompt.title,
+                prompt=new_prompt.prompt,
+                negative_prompt=new_prompt.negative_prompt,
+                description=new_prompt.description,
+                image_url=new_prompt.image_cdn_url or new_prompt.image_r2_url,
+                thumbnail_url=new_prompt.thumbnail_cdn_url,
+                created_at=new_prompt.created_at.isoformat(),
+                parameters={
+                    "width": new_prompt.width,
+                    "height": new_prompt.height,
+                    "steps": new_prompt.steps,
+                    "guidance_scale": new_prompt.guidance_scale,
+                    "seed": new_prompt.seed,
+                    "sampler": new_prompt.sampler,
+                    "clip_skip": new_prompt.clip_skip,
+                },
+                loras_used=new_prompt.loras_used,
+                model_name=payload.model_name,
+                tags=new_prompt.tags,
+                is_public=new_prompt.is_public,
+            )
+            return result
+    except Exception as e:
+        logger.error(f"Failed to save prompt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def get_cdn_url_from_r2(r2_url: str, thumbnail_cdn_url: Optional[str] = None) -> str:
+    """Convert R2 URL to CDN URL if possible"""
+    if thumbnail_cdn_url and "foto.mylinkbuddy.com" in thumbnail_cdn_url:
+        # Extract the path from R2 URL and use CDN domain
+        import re
+        # Extract everything after the bucket name
+        match = re.search(r'/prompts/(.+)$', r2_url)
+        if match:
+            path = match.group(1)
+            return f"https://foto.mylinkbuddy.com/prompts/{path}"
+    return r2_url
+
+@app.get("/favorite-prompts")
+async def list_prompts(limit: int = 50, offset: int = 0):
+    """List saved prompts with thumbnails"""
+    try:
+        db_client = await get_db_client()
+        async with db_client.get_session() as session:
+            from database.sqlalchemy_models import FavoritePrompt
+            result = await session.execute(
+                select(FavoritePrompt).order_by(FavoritePrompt.created_at.desc()).offset(offset).limit(limit)
+            )
+            prompts = result.scalars().all()
+            prompts_list = [
+                FavoritePromptSummary(
+                    id=p.id,
+                    title=p.title,
+                    prompt=p.prompt,
+                    negative_prompt=p.negative_prompt,
+                    image_url=p.image_cdn_url or get_cdn_url_from_r2(p.image_r2_url, p.thumbnail_cdn_url),
+                    image_r2_url=p.image_r2_url,  # Include R2 URL as fallback
+                    thumbnail_url=p.thumbnail_cdn_url,
+                    created_at=p.created_at.isoformat(),
+                )
+                for p in prompts
+            ]
+            
+            # Return wrapped response consistent with other endpoints
+            return {
+                "prompts": prompts_list,
+                "total": len(prompts_list),
+                "limit": limit,
+                "offset": offset
+            }
+    except Exception as e:
+        logger.error(f"Failed to list prompts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/favorite-prompts/{prompt_id}", response_model=FavoritePromptDetail)
+async def get_prompt(prompt_id: str):
+    """Get detailed prompt info"""
+    try:
+        db_client = await get_db_client()
+        async with db_client.get_session() as session:
+            from database.sqlalchemy_models import FavoritePrompt  # type: ignore
+            result = await session.execute(select(FavoritePrompt).where(FavoritePrompt.id == prompt_id))
+            prompt_obj = result.scalar_one_or_none()
+            if not prompt_obj:
+                raise HTTPException(status_code=404, detail="Prompt not found")
+            
+            # Access all attributes while still in session context
+            prompt_data = FavoritePromptDetail(
+                id=prompt_obj.id,
+                title=prompt_obj.title,
+                prompt=prompt_obj.prompt,
+                negative_prompt=prompt_obj.negative_prompt,
+                description=prompt_obj.description,
+                image_url=prompt_obj.image_cdn_url or get_cdn_url_from_r2(prompt_obj.image_r2_url, prompt_obj.thumbnail_cdn_url),
+                image_r2_url=prompt_obj.image_r2_url,  # Include R2 URL as fallback
+                thumbnail_url=prompt_obj.thumbnail_cdn_url,
+                created_at=prompt_obj.created_at.isoformat() if prompt_obj.created_at else "",
+                parameters={
+                    "width": prompt_obj.width,
+                    "height": prompt_obj.height,
+                    "steps": prompt_obj.steps,
+                    "guidance_scale": prompt_obj.guidance_scale,
+                    "seed": prompt_obj.seed,
+                    "sampler": prompt_obj.sampler,
+                    "clip_skip": prompt_obj.clip_skip,
+                },
+                loras_used=prompt_obj.loras_used or [],
+                model_name=prompt_obj.model_id,
+                tags=prompt_obj.tags or [],
+                is_public=prompt_obj.is_public,
+            )
+            
+            return prompt_data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch prompt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ===== SYSTEM CONFIG CRUD ENDPOINTS =====
 
 @app.get("/config")
@@ -942,5 +1183,12 @@ async def delete_config(config_key: str):
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("🚀 Starting Image Generation API v2.0.0")
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
+    args = parser.parse_args()
+    
+    logger.info(f"🚀 Starting Image Generation API v2.0.0 on {args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port) 

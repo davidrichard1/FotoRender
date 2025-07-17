@@ -1,6 +1,7 @@
 export interface Image {
   id: string
   url: string
+  fallbackUrl?: string  // Add fallback URL for CORS issues
   title: string
   description?: string
   originalUrl: string

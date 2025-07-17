@@ -9,7 +9,7 @@ export function Navigation() {
 
   const navItems = [
     { href: '/', label: '🎨 Generate' },
-    { href: '/dashboard', label: '📊 Dashboard' },
+    { href: '/prompts', label: '📚 Prompts' },
     { href: '/admin', label: '⚙️ Admin' },
   ]
 

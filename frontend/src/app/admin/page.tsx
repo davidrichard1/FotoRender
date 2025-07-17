@@ -15,6 +15,7 @@ import { VaesTable } from '@/components/admin/VaesTable'
 import { UpscalersTable } from '@/components/admin/UpscalersTable'
 import { SamplersTable } from '@/components/admin/SamplersTable'
 import { SystemConfigTable } from '@/components/admin/SystemConfigTable'
+import { CacheManager } from '@/components/admin/CacheManager'
 import CompatibilityManager from '@/components/admin/CompatibilityManager'
 import ModelModal from '@/components/admin/ModelModal'
 import LoraModal from '@/components/admin/LoraModal'
@@ -189,6 +190,7 @@ export default function AdminPage() {
     { id: 'vaes', label: 'VAEs', icon: '🖼️' },
     { id: 'upscalers', label: 'Upscalers', icon: '📈' },
     { id: 'samplers', label: 'Samplers', icon: '🎲' },
+    { id: 'cache', label: 'Image Cache', icon: '💾' },
     { id: 'system', label: 'System Config', icon: '⚙️' }
   ]
 
@@ -728,6 +730,9 @@ export default function AdminPage() {
             onDelete={handleDeleteSampler}
           />
         )
+
+      case 'cache':
+        return <CacheManager />
 
       case 'system':
         return (

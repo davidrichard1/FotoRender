@@ -112,14 +112,33 @@ class FavoritePromptService:
                 "id": favorite.id,
                 "title": favorite.title,
                 "prompt": favorite.prompt,
+                "negative_prompt": favorite.negative_prompt,
+                "description": favorite.description,
                 "image_url": favorite.image_cdn_url or favorite.image_r2_url,
                 "thumbnail_url": favorite.thumbnail_cdn_url,
-                "r2_key": favorite.image_r2_key,
-                "created_at": favorite.created_at.isoformat(),
+                # Generation parameters
+                "width": favorite.width,
+                "height": favorite.height,
+                "steps": favorite.steps,
+                "guidance_scale": favorite.guidance_scale,
+                "seed": favorite.seed,
+                "sampler": favorite.sampler,
+                "clip_skip": favorite.clip_skip,
+                "model": {
+                    "filename": prompt_data.get("model_filename"),
+                    "display_name": prompt_data.get("model_filename", "").replace('.safetensors', '').replace('.ckpt', '')
+                } if prompt_data.get("model_filename") else None,
+                "loras_used": favorite.loras_used,
+                # Organization & Analytics
                 "tags": favorite.tags,
                 "category": favorite.category,
                 "is_public": favorite.is_public,
-                "usage_count": favorite.usage_count
+                "is_featured": favorite.is_featured,
+                "usage_count": favorite.usage_count,
+                "like_count": favorite.like_count,
+                "view_count": favorite.view_count,
+                "created_at": favorite.created_at.isoformat(),
+                "updated_at": favorite.updated_at.isoformat()
             }
             
         except Exception as e:
