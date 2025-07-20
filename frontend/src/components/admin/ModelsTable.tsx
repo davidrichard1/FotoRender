@@ -78,12 +78,14 @@ interface ModelsTableProps {
   onAdd: () => void
   onEdit: (model: AiModel) => void
   onDelete: (model: AiModel) => void
+  onSync?: () => void
 }
 
 export const ModelsTable: React.FC<ModelsTableProps> = ({
   onAdd,
   onEdit,
   onDelete,
+  onSync,
 }) => {
   const [data, setData] = useState<AiModel[]>([])
   const [loading, setLoading] = useState(true)
@@ -342,9 +344,16 @@ export const ModelsTable: React.FC<ModelsTableProps> = ({
             Manage your AI models and their configurations
           </p>
         </div>
-        <Button onClick={onAdd} className="bg-blue-600 hover:bg-blue-700">
-          Add Model
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={onAdd} className="bg-blue-600 hover:bg-blue-700">
+            Add Model
+          </Button>
+          {onSync && (
+            <Button onClick={onSync} variant="outline" className="border-green-600 text-green-600 hover:bg-green-50 dark:border-green-400 dark:text-green-400 dark:hover:bg-green-950">
+              🔄 Sync Models
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>

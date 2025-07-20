@@ -10,7 +10,7 @@ import { Accordion } from '@/components/ui/accordion'
 import { JobProgress } from '@/components/ui/JobProgress'
 import { useJobStatus } from '@/hooks/useJobStatus'
 import { useScrollSync } from '@/hooks/useScrollSync'
-import { generateImage, cancelJob, GenerationRequest, savePrompt } from '@/lib/api'
+import { generateImage, cancelJob, GenerationRequest, savePrompt, getModelConfig } from '@/lib/api'
 import { createDataPromises, refreshData } from '@/lib/data-promises'
 import {
   DataErrorBoundary,
@@ -150,6 +150,26 @@ export default function HomePage() {
   const [loadingMessage, setLoadingMessage] = useState('')
   const [isModelSwitching, setIsModelSwitching] = useState(false)
 
+  // Model-specific prompt defaults and suggestions
+  const [modelPromptDefaults, setModelPromptDefaults] = useState<{
+    positive_prompt: string
+    negative_prompt: string
+    usage_notes: string
+    suggested_prompts: string[]
+    suggested_tags: string[]
+    suggested_negative_prompts: string[]
+    suggested_negative_tags: string[]
+  }>({
+    positive_prompt: '',
+    negative_prompt: '',
+    usage_notes: '',
+    suggested_prompts: [],
+    suggested_tags: [],
+    suggested_negative_prompts: [],
+    suggested_negative_tags: []
+  })
+  const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
+
   // Generation parameters
   const [params, setParams] = useState<GenerationParams>({
     prompt:
@@ -187,6 +207,82 @@ export default function HomePage() {
     setDataPromises(createDataPromises())
   }, [])
 
+  // Load model-specific prompt defaults
+  const loadModelPromptDefaults = useCallback(async (modelFilename: string) => {
+    if (!modelFilename) {
+      setModelPromptDefaults({
+        positive_prompt: '',
+        negative_prompt: '',
+        usage_notes: '',
+        suggested_prompts: [],
+        suggested_tags: [],
+        suggested_negative_prompts: [],
+        suggested_negative_tags: []
+      })
+      return
+    }
+
+    setIsLoadingModelConfig(true)
+    try {
+      console.log(`🔄 Loading prompt defaults for model: ${modelFilename}`)
+      const response = await getModelConfig(modelFilename)
+      
+      if (response.data && response.data.prompt_defaults) {
+        const defaults = response.data.prompt_defaults
+        setModelPromptDefaults({
+          positive_prompt: defaults.positive_prompt || '',
+          negative_prompt: defaults.negative_prompt || '',
+          usage_notes: defaults.usage_notes || '',
+          suggested_prompts: defaults.suggested_prompts || [],
+          suggested_tags: defaults.suggested_tags || [],
+          suggested_negative_prompts: defaults.suggested_negative_prompts || [],
+          suggested_negative_tags: defaults.suggested_negative_tags || []
+        })
+        console.log(`✅ Loaded prompt defaults:`, defaults)
+        console.log(`🔍 Model prompt defaults state will be:`, {
+          positive_prompt: defaults.positive_prompt || '',
+          negative_prompt: defaults.negative_prompt || '',
+          usage_notes: defaults.usage_notes || '',
+          suggested_prompts: defaults.suggested_prompts || [],
+          suggested_tags: defaults.suggested_tags || [],
+          suggested_negative_prompts: defaults.suggested_negative_prompts || [],
+          suggested_negative_tags: defaults.suggested_negative_tags || []
+        })
+      } else {
+        console.log(`⚠️ No prompt defaults found for model: ${modelFilename}`)
+        setModelPromptDefaults({
+          positive_prompt: '',
+          negative_prompt: '',
+          usage_notes: '',
+          suggested_prompts: [],
+          suggested_tags: [],
+          suggested_negative_prompts: [],
+          suggested_negative_tags: []
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load model prompt defaults:', error)
+      setModelPromptDefaults({
+        positive_prompt: '',
+        negative_prompt: '',
+        usage_notes: '',
+        suggested_prompts: [],
+        suggested_tags: [],
+        suggested_negative_prompts: [],
+        suggested_negative_tags: []
+      })
+    } finally {
+      setIsLoadingModelConfig(false)
+    }
+  }, [])
+
+  // Load model prompt defaults when current model changes
+  useEffect(() => {
+    if (currentModel) {
+      loadModelPromptDefaults(currentModel)
+    }
+  }, [currentModel, loadModelPromptDefaults])
+
   // Refresh data when model changes
   const refreshDataForModel = useCallback((modelName: string) => {
     const newPromises = refreshData('loras', modelName)
@@ -223,6 +319,35 @@ export default function HomePage() {
   ]
 
   // ===== API FUNCTIONS =====
+  const loadModelDefaults = useCallback(async (modelName: string) => {
+    try {
+      const response = await getModelConfig(modelName)
+      if (response.data && response.data.prompt_defaults) {
+        const defaults = response.data.prompt_defaults
+        
+        setParams(prev => ({
+          ...prev,
+          // Apply defaults if current values are the default values (to avoid overwriting user input)
+          prompt: prev.prompt === 'A beautiful landscape with mountains and a lake at sunset, photorealistic, highly detailed' && defaults.positive_prompt
+            ? defaults.positive_prompt
+            : prev.prompt,
+          negative_prompt: prev.negative_prompt === 'blurry, low quality, distorted, bad anatomy, watermark' && defaults.negative_prompt
+            ? defaults.negative_prompt
+            : prev.negative_prompt,
+          sampler: response.data!.default_sampler || prev.sampler
+        }))
+        
+        // Show model-specific usage notes if available
+        if (defaults.usage_notes) {
+          console.log(`📝 Model Tips: ${defaults.usage_notes}`)
+          // You could also show this in the UI via a toast or info panel
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load model defaults:', error)
+    }
+  }, [])
+
   const switchModel = useCallback(
     async (modelName: string) => {
       setIsModelSwitching(true)
@@ -250,11 +375,14 @@ export default function HomePage() {
         setCurrentModel(data.current_model)
         setParams((prev) => ({ ...prev, model: modelName }))
         refreshDataForModel(modelName)
+        
+        // Load model-specific defaults
+        await loadModelDefaults(modelName)
       } finally {
         setIsModelSwitching(false)
       }
     },
-    [refreshDataForModel]
+    [refreshDataForModel, loadModelDefaults]
   )
 
   const loadVae = useCallback(async (vaeFilename: string) => {
@@ -435,6 +563,51 @@ export default function HomePage() {
       })
     }
   }, [generatedImage])
+
+  // ===== PROMPT HELPER FUNCTIONS =====
+  const applyPromptDefault = useCallback((type: 'positive' | 'negative') => {
+    const defaultValue = type === 'positive' 
+      ? modelPromptDefaults.positive_prompt 
+      : modelPromptDefaults.negative_prompt
+    
+    if (!defaultValue) return
+    
+    const field = type === 'positive' ? 'prompt' : 'negative_prompt'
+    setParams(prev => ({
+      ...prev,
+      [field]: defaultValue
+    }))
+  }, [modelPromptDefaults])
+
+  const applySuggestedPrompt = useCallback((suggestion: string) => {
+    setParams(prev => ({
+      ...prev,
+      prompt: suggestion
+    }))
+  }, [])
+
+  const applySuggestedTag = useCallback((tag: string, type: 'positive' | 'negative') => {
+    const field = type === 'positive' ? 'prompt' : 'negative_prompt'
+    setParams(prev => ({
+      ...prev,
+      [field]: prev[field] ? `${prev[field]}, ${tag}` : tag
+    }))
+  }, [])
+
+  const applySuggestedNegativePrompt = useCallback((suggestion: string) => {
+    setParams(prev => ({
+      ...prev,
+      negative_prompt: suggestion
+    }))
+  }, [])
+
+  const appendToPrompt = useCallback((text: string, type: 'positive' | 'negative' = 'positive') => {
+    const field = type === 'positive' ? 'prompt' : 'negative_prompt'
+    setParams(prev => ({
+      ...prev,
+      [field]: prev[field] ? `${prev[field]}, ${text}` : text
+    }))
+  }, [])
 
   // ===== GENERATION FUNCTIONS =====
   const handleGenerate = useCallback(async () => {
@@ -620,11 +793,27 @@ export default function HomePage() {
               </div>
 
               <div className="flex-1 px-4 md:px-6 pb-4 md:pb-6 lg:overflow-y-auto space-y-6">
-                {/* Prompt */}
+                                  {/* Prompt */}
                 <div>
-                  <Label className="text-white font-medium mb-2 block">
-                    Prompt
-                  </Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-white font-medium">
+                      Prompt
+                      {isLoadingModelConfig && (
+                        <span className="ml-2 text-xs text-gray-400">
+                          (Loading defaults...)
+                        </span>
+                      )}
+                    </Label>
+                    {modelPromptDefaults.positive_prompt.trim() !== '' && !isLoadingModelConfig && (
+                      <button
+                        onClick={() => applyPromptDefault('positive')}
+                        className="text-xs px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded border border-blue-600/30 transition-colors"
+                        title={`Apply default: ${modelPromptDefaults.positive_prompt.slice(0, 50)}...`}
+                      >
+                        Use Default
+                      </button>
+                    )}
+                  </div>
                   <textarea
                     value={params.prompt}
                     onChange={(e) =>
@@ -632,19 +821,76 @@ export default function HomePage() {
                     }
                     className="w-full px-3 py-2 bg-[#0D1117] border border-[#30363D] rounded text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors resize-none"
                     style={{
-                      minHeight: '100px',
-                      maxHeight: '200px'
+                      minHeight: '120px',
+                      maxHeight: '240px'
                     }}
-                    rows={4}
+                    rows={5}
                     placeholder="Describe what you want to generate..."
                   />
+                  
+                  {/* Model Default Prompt */}
+                  {modelPromptDefaults.positive_prompt.trim() !== '' && (
+                    <div className="mt-2 p-2 bg-blue-950/30 border border-blue-600/20 rounded text-xs">
+                      <div className="text-blue-300 font-medium mb-1">Model Default:</div>
+                      <div className="text-gray-300">{modelPromptDefaults.positive_prompt}</div>
+                    </div>
+                  )}
+                  
+                  {/* Suggested Prompts */}
+                  {modelPromptDefaults.suggested_prompts && modelPromptDefaults.suggested_prompts.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-400 mb-2">Suggested prompts for this model:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {modelPromptDefaults.suggested_prompts.filter(s => s.trim() !== '').map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applySuggestedPrompt(suggestion)}
+                            className="text-xs px-2 py-1 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded border border-green-600/30 transition-colors"
+                            title="Click to use this prompt"
+                          >
+                            {suggestion.length > 30 ? `${suggestion.slice(0, 30)}...` : suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Tags */}
+                  {modelPromptDefaults.suggested_tags && modelPromptDefaults.suggested_tags.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-400 mb-2">Suggested tags to add:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {modelPromptDefaults.suggested_tags.filter(s => s.trim() !== '').map((tag, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applySuggestedTag(tag, 'positive')}
+                            className="text-xs px-2 py-1 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-300 rounded border border-yellow-600/30 transition-colors"
+                            title="Click to add this tag to your prompt"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Negative Prompt */}
                 <div>
-                  <Label className="text-white font-medium mb-2 block">
-                    Negative Prompt
-                  </Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-white font-medium">
+                      Negative Prompt
+                    </Label>
+                    {modelPromptDefaults.negative_prompt.trim() !== '' && (
+                      <button
+                        onClick={() => applyPromptDefault('negative')}
+                        className="text-xs px-2 py-1 bg-orange-600/20 hover:bg-orange-600/30 text-orange-300 rounded border border-orange-600/30 transition-colors"
+                        title={`Apply default: ${modelPromptDefaults.negative_prompt.slice(0, 50)}...`}
+                      >
+                        Use Default
+                      </button>
+                    )}
+                  </div>
                   <textarea
                     value={params.negative_prompt}
                     onChange={(e) =>
@@ -655,12 +901,66 @@ export default function HomePage() {
                     }
                     className="w-full px-3 py-2 bg-[#0D1117] border border-[#30363D] rounded text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors resize-none"
                     style={{
-                      minHeight: '60px',
-                      maxHeight: '160px'
+                      minHeight: '100px',
+                      maxHeight: '200px'
                     }}
-                    rows={2}
+                    rows={4}
                     placeholder="What to avoid..."
                   />
+                  
+                  {/* Model Default Negative Prompt */}
+                  {modelPromptDefaults.negative_prompt.trim() !== '' && (
+                    <div className="mt-2 p-2 bg-orange-950/30 border border-orange-600/20 rounded text-xs">
+                      <div className="text-orange-300 font-medium mb-1">Model Default:</div>
+                      <div className="text-gray-300">{modelPromptDefaults.negative_prompt}</div>
+                    </div>
+                  )}
+
+                  {/* Suggested Negative Prompts */}
+                  {modelPromptDefaults.suggested_negative_prompts && modelPromptDefaults.suggested_negative_prompts.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-400 mb-2">Suggested negative prompts:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {modelPromptDefaults.suggested_negative_prompts.filter(s => s.trim() !== '').map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applySuggestedNegativePrompt(suggestion)}
+                            className="text-xs px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 rounded border border-red-600/30 transition-colors"
+                            title="Click to use this negative prompt"
+                          >
+                            {suggestion.length > 30 ? `${suggestion.slice(0, 30)}...` : suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Negative Tags */}
+                  {modelPromptDefaults.suggested_negative_tags && modelPromptDefaults.suggested_negative_tags.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs text-gray-400 mb-2">Suggested negative tags to add:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {modelPromptDefaults.suggested_negative_tags.filter(s => s.trim() !== '').map((tag, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applySuggestedTag(tag, 'negative')}
+                            className="text-xs px-2 py-1 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 rounded border border-amber-600/30 transition-colors"
+                            title="Click to add this tag to your negative prompt"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Usage Notes */}
+                  {modelPromptDefaults.usage_notes.trim() !== '' && (
+                    <div className="mt-2 p-2 bg-purple-950/30 border border-purple-600/20 rounded text-xs">
+                      <div className="text-purple-300 font-medium mb-1">Usage Notes:</div>
+                      <div className="text-gray-300 whitespace-pre-wrap">{modelPromptDefaults.usage_notes}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Model Assets with Suspense */}

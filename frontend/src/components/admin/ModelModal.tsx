@@ -11,10 +11,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Textarea, Select, SelectItem, Switch,
+  Textarea, Select, SelectItem, Switch, ListManager,
 } from '@/components/ui'
 import { Badge } from '@/components/ui/badge'
-import { ApiModel, createModel, updateModel } from '@/lib/api'
+import { ApiModel, createModel, updateModel, getModelConfig, updateModelConfig } from '@/lib/api'
 
 interface ModelModalProps {
   isOpen: boolean
@@ -34,6 +34,16 @@ interface ModelFormData {
   description: string
   is_nsfw: boolean
   file_size_mb: number | null
+  // Prompt defaults configuration
+  prompt_defaults: {
+    positive_prompt: string
+    negative_prompt: string
+    suggested_prompts: string[]
+    suggested_tags: string[]
+    suggested_negative_prompts: string[]
+    suggested_negative_tags: string[]
+    usage_notes: string
+  }
 }
 
 // Model types for the main Models table (checkpoints/base models only)
@@ -136,6 +146,15 @@ export default function ModelModal({
     description: '',
     is_nsfw: false,
     file_size_mb: null,
+    prompt_defaults: {
+      positive_prompt: '',
+      negative_prompt: '',
+      suggested_prompts: [],
+      suggested_tags: [],
+      suggested_negative_prompts: [],
+      suggested_negative_tags: [],
+      usage_notes: ''
+    }
   })
 
   const [isLoading, setIsLoading] = useState(false)
@@ -143,6 +162,50 @@ export default function ModelModal({
   const [submitError, setSubmitError] = useState<string>('')
 
   const isEditing = !!model
+
+  // Load model configuration
+  const loadModelConfig = async (modelFilename: string) => {
+    try {
+      console.log(`🔄 Loading model config for: ${modelFilename}`)
+      const response = await getModelConfig(modelFilename)
+      console.log(`📦 Received model config:`, response.data)
+      
+      if (response.data) {
+        const defaults = response.data.prompt_defaults || {}
+        
+        console.log(`📝 Loading prompt defaults:`, defaults)
+        
+        setFormData(prev => ({
+          ...prev,
+          prompt_defaults: {
+            positive_prompt: defaults.positive_prompt || '',
+            negative_prompt: defaults.negative_prompt || '',
+            suggested_prompts: defaults.suggested_prompts || [],
+            suggested_tags: defaults.suggested_tags || [],
+            suggested_negative_prompts: defaults.suggested_negative_prompts || [],
+            suggested_negative_tags: defaults.suggested_negative_tags || [],
+            usage_notes: defaults.usage_notes || ''
+          }
+        }))
+      } else {
+        console.log(`⚠️ No model config found, using empty defaults`)
+        setFormData(prev => ({
+          ...prev,
+          prompt_defaults: {
+            positive_prompt: '',
+            negative_prompt: '',
+            suggested_prompts: [],
+            suggested_tags: [],
+            suggested_negative_prompts: [],
+            suggested_negative_tags: [],
+            usage_notes: ''
+          }
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to load model config:', error)
+    }
+  }
 
   // Reset form when modal opens/closes or model changes
   useEffect(() => {
@@ -160,7 +223,18 @@ export default function ModelModal({
           description: model.description || '',
           is_nsfw: model.is_nsfw,
           file_size_mb: model.file_size_mb,
+          prompt_defaults: {
+            positive_prompt: '',
+            negative_prompt: '',
+            suggested_prompts: [],
+            suggested_tags: [],
+            suggested_negative_prompts: [],
+            suggested_negative_tags: [],
+            usage_notes: ''
+          }
         })
+        // Load existing prompt defaults from API
+        loadModelConfig(model.filename)
       } else {
         // Adding - reset to defaults
         setFormData({
@@ -174,6 +248,15 @@ export default function ModelModal({
           description: '',
           is_nsfw: false,
           file_size_mb: null,
+          prompt_defaults: {
+            positive_prompt: '',
+            negative_prompt: '',
+            suggested_prompts: [],
+            suggested_tags: [],
+            suggested_negative_prompts: [],
+            suggested_negative_tags: [],
+            usage_notes: ''
+          }
         })
       }
       setErrors({})
@@ -216,19 +299,55 @@ export default function ModelModal({
       let result
 
       if (isEditing && model) {
-        // Update existing model
-        result = await updateModel(model.filename, formData)
+        // For editing existing models, just update the configuration
+        try {
+          console.log(`💾 Saving model config for: ${model.filename}`)
+          console.log(`📝 Prompt defaults being saved:`, formData.prompt_defaults)
+          
+          const configResult = await updateModelConfig(model.filename, {
+            prompt_defaults: formData.prompt_defaults
+          })
+          
+          console.log(`✅ Save result:`, configResult)
+          
+          if (configResult.error) {
+            setSubmitError(configResult.error)
+            return
+          }
+          
+          // Success - call onSuccess with the existing model data
+          onSuccess(model)
+          onClose()
+        } catch (configError) {
+          console.error(`❌ Save error:`, configError)
+          setSubmitError(configError instanceof Error ? configError.message : 'Failed to save configuration')
+        }
       } else {
         // Create new model
-        result = await createModel(formData)
-      }
+        const result = await createModel(formData)
+        
+        if (result.error) {
+          setSubmitError(result.error)
+        } else if (result.data) {
+          // Save model configuration (prompt defaults) for new model
+          try {
+            const configResult = await updateModelConfig(result.data.filename, {
+              prompt_defaults: formData.prompt_defaults
+            })
+            
+            if (configResult.error) {
+              console.error('Failed to save model configuration:', configResult.error)
+              // Don't block the main operation, just log the error
+            }
+          } catch (configError) {
+            console.error('Failed to save model configuration:', configError)
+            // Don't block the main operation
+          }
 
-      if (result.error) {
-        setSubmitError(result.error)
-      } else if (result.data) {
-        // Success - call onSuccess with the model data
-        onSuccess(result.data)
-        onClose()
+          // Success - call onSuccess with the model data
+          onSuccess(result.data)
+          onClose()
+        }
       }
     } catch (error) {
       setSubmitError(
@@ -435,6 +554,130 @@ export default function ModelModal({
                   Mark if this model generates adult content
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Prompt Defaults Configuration */}
+          <div className="space-y-4 border-t pt-6">
+            <h3 className="text-lg font-medium text-gray-900">Prompt Defaults & Suggestions</h3>
+            <p className="text-sm text-gray-600">Configure default prompts and suggestions that will be applied when this model is selected.</p>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="positive_prompt">Default Positive Prompt</Label>
+                <Textarea
+                  id="positive_prompt"
+                  value={formData.prompt_defaults.positive_prompt}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    prompt_defaults: {
+                      ...prev.prompt_defaults,
+                      positive_prompt: e.target.value
+                    }
+                  }))}
+                  placeholder="e.g., masterpiece, best quality, highly detailed"
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="negative_prompt">Default Negative Prompt</Label>
+                <Textarea
+                  id="negative_prompt"
+                  value={formData.prompt_defaults.negative_prompt}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    prompt_defaults: {
+                      ...prev.prompt_defaults,
+                      negative_prompt: e.target.value
+                    }
+                  }))}
+                  placeholder="e.g., blurry, low quality, distorted, bad anatomy, watermark"
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+              <ListManager
+                label="Suggested Prompts"
+                value={formData.prompt_defaults.suggested_prompts}
+                onChange={(newValue) => setFormData(prev => ({
+                  ...prev,
+                  prompt_defaults: {
+                    ...prev.prompt_defaults,
+                    suggested_prompts: newValue
+                  }
+                }))}
+                placeholder="Enter a complete prompt example..."
+                addButtonText="Add Prompt"
+                className="mb-4"
+              />
+
+              <ListManager
+                label="Suggested Tags"
+                value={formData.prompt_defaults.suggested_tags}
+                onChange={(newValue) => setFormData(prev => ({
+                  ...prev,
+                  prompt_defaults: {
+                    ...prev.prompt_defaults,
+                    suggested_tags: newValue
+                  }
+                }))}
+                placeholder="Enter a tag..."
+                addButtonText="Add Tag"
+                className="mb-4"
+              />
+
+              <ListManager
+                label="Suggested Negative Prompts"
+                value={formData.prompt_defaults.suggested_negative_prompts}
+                onChange={(newValue) => setFormData(prev => ({
+                  ...prev,
+                  prompt_defaults: {
+                    ...prev.prompt_defaults,
+                    suggested_negative_prompts: newValue
+                  }
+                }))}
+                placeholder="Enter a negative prompt example..."
+                addButtonText="Add Negative"
+                className="mb-4"
+              />
+
+              <ListManager
+                label="Suggested Negative Tags"
+                value={formData.prompt_defaults.suggested_negative_tags}
+                onChange={(newValue) => setFormData(prev => ({
+                  ...prev,
+                  prompt_defaults: {
+                    ...prev.prompt_defaults,
+                    suggested_negative_tags: newValue
+                  }
+                }))}
+                placeholder="Enter a negative tag..."
+                addButtonText="Add Tag"
+                className="mb-4"
+              />
+
+              <div className="space-y-2">
+                <Label htmlFor="usage_notes">Usage Notes & Tips</Label>
+                <Textarea
+                  id="usage_notes"
+                  value={formData.prompt_defaults.usage_notes}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    prompt_defaults: {
+                      ...prev.prompt_defaults,
+                      usage_notes: e.target.value
+                    }
+                  }))}
+                  placeholder="Tips for using this model effectively, notes about quality, style, etc."
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+
+
             </div>
           </div>
 

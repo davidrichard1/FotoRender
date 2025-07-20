@@ -17,7 +17,7 @@ import json
 
 # Add database imports
 from database.sqlalchemy_client import get_db_client
-from database.sqlalchemy_models import SystemConfig
+from database.sqlalchemy_models import SystemConfig, AiModel
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -494,6 +494,86 @@ async def get_models():
         }
     except Exception as e:
         logger.error(f"Failed to get models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/models/{model_filename}/config")
+async def get_model_config(model_filename: str):
+    """Get model-specific configuration including prompt defaults"""
+    try:
+        db_client = await get_db_client()
+        
+        async with db_client.get_session() as session:
+            result = await session.execute(
+                select(AiModel).where(AiModel.filename == model_filename)
+            )
+            model = result.scalar_one_or_none()
+            
+            if not model:
+                raise HTTPException(status_code=404, detail="Model not found")
+            
+            # Return model configuration with prompt defaults
+            config = {
+                "filename": model.filename,
+                "display_name": model.display_name,
+                "default_sampler": model.default_sampler,
+                "prompt_defaults": {
+                    "positive_prompt": model.default_positive_prompt or "",
+                    "negative_prompt": model.default_negative_prompt or "",
+                    "usage_notes": model.usage_notes or "",
+                    "suggested_prompts": model.suggested_prompts or [],
+                    "suggested_tags": model.suggested_tags or [],
+                    "suggested_negative_prompts": model.suggested_negative_prompts or [],
+                    "suggested_negative_tags": model.suggested_negative_tags or []
+                }
+            }
+            
+            return config
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get model config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ModelConfigRequest(BaseModel):
+    prompt_defaults: Optional[Dict[str, Any]] = None
+
+@app.put("/models/{model_filename}/config")
+async def update_model_config(model_filename: str, request: ModelConfigRequest):
+    """Update model-specific configuration"""
+    try:
+        db_client = await get_db_client()
+        
+        async with db_client.get_session() as session:
+            result = await session.execute(
+                select(AiModel).where(AiModel.filename == model_filename)
+            )
+            model = result.scalar_one_or_none()
+            
+            if not model:
+                raise HTTPException(status_code=404, detail="Model not found")
+            
+            # Update dedicated database fields for prompt defaults
+            if request.prompt_defaults is not None:
+                model.default_positive_prompt = request.prompt_defaults.get("positive_prompt", "")
+                model.default_negative_prompt = request.prompt_defaults.get("negative_prompt", "")
+                model.usage_notes = request.prompt_defaults.get("usage_notes", "")
+                model.suggested_prompts = request.prompt_defaults.get("suggested_prompts", [])
+                model.suggested_tags = request.prompt_defaults.get("suggested_tags", [])
+                model.suggested_negative_prompts = request.prompt_defaults.get("suggested_negative_prompts", [])
+                model.suggested_negative_tags = request.prompt_defaults.get("suggested_negative_tags", [])
+            
+            await session.commit()
+            
+            return {
+                "success": True,
+                "message": f"Updated configuration for {model.display_name}"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update model config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/loras")

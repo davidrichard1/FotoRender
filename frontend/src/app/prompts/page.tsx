@@ -286,23 +286,7 @@ function PromptsPageClient() {
     }
   }, [selectedImage, prompts, currentImageIndex])
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!showImageViewer) return
-      
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        navigateImage('prev')
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        navigateImage('next')
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [showImageViewer, currentImageIndex, prompts])
+  // Keyboard navigation is now handled within the ImageViewer component
 
   if (loading) {
     return (
@@ -380,33 +364,21 @@ function PromptsPageClient() {
 
       {/* Image Viewer Modal */}
       {showImageViewer && selectedImage && prompts.length > 0 && (
-        <>
-          <ImageViewer
-            image={currentImageData}
-            onClose={() => {
-              setShowImageViewer(false)
-              setSelectedImage(null)
-            }}
-            onToggleFavorite={() => {}} // No-op since already favorited
-            onEdit={() => {}} // No-op for now
-          />
-          
-          {/* Navigation Overlay */}
-          {prompts.length > 1 && (
-            <div className="fixed top-4 right-4 z-[60] bg-black/80 text-white px-3 py-2 rounded-lg text-sm">
-              {currentImageIndex + 1} / {prompts.length}
-            </div>
-          )}
-          
-          {/* Navigation Hints */}
-          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[60] bg-black/80 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-4">
-            <span>Use arrow keys to navigate</span>
-            <div className="flex gap-2">
-              <span className="bg-white/20 px-2 py-1 rounded text-xs">←</span>
-              <span className="bg-white/20 px-2 py-1 rounded text-xs">→</span>
-            </div>
-          </div>
-        </>
+        <ImageViewer
+          image={currentImageData}
+          onClose={() => {
+            setShowImageViewer(false)
+            setSelectedImage(null)
+          }}
+          onToggleFavorite={() => {}} // No-op since already favorited
+          onEdit={() => {}} // No-op for now
+          onPrevious={prompts.length > 1 ? () => navigateImage('prev') : undefined}
+          onNext={prompts.length > 1 ? () => navigateImage('next') : undefined}
+          currentIndex={currentImageIndex}
+          totalCount={prompts.length}
+          hasPrevious={prompts.length > 1}
+          hasNext={prompts.length > 1}
+        />
       )}
     </div>
   )

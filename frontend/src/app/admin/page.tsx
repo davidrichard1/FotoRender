@@ -199,6 +199,39 @@ export default function AdminPage() {
     setIsModelModalOpen(true)
   }
 
+  const handleSyncModels = async () => {
+    try {
+      const apiHost = typeof window !== 'undefined'
+        ? `${window.location.hostname}:8000`
+        : 'localhost:8000'
+        
+      const response = await fetch(`http://${apiHost}/models/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      
+      if (result.success) {
+        showSuccess(`Successfully synced ${result.details.synced} new models from filesystem`)
+        
+        // Trigger a page refresh to show new models
+        window.location.reload()
+      } else {
+        throw new Error(result.message || 'Sync failed')
+      }
+    } catch (error) {
+      console.error('Failed to sync models:', error)
+      showError(error instanceof Error ? error.message : 'Failed to sync models from filesystem')
+    }
+  }
+
   const handleEditModel = (model: AiModel) => {
     // Convert the UI model back to API model format for editing
     const apiModel: ApiModel = {
@@ -683,6 +716,7 @@ export default function AdminPage() {
             onAdd={handleAddModel}
             onEdit={handleEditModel}
             onDelete={handleDeleteModel}
+            onSync={handleSyncModels}
           />
         )
 

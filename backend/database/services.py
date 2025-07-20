@@ -142,9 +142,96 @@ class ModelManager:
     
     async def sync_models(self) -> Dict[str, Any]:
         """Sync models from filesystem to database"""
-        # This would need to be implemented in the ModelService
-        logger.warning("sync_models not yet implemented")
-        return {"synced": 0, "errors": 0}
+        synced_count = 0
+        error_count = 0
+        errors = []
+        
+        try:
+            db_client = await get_db_client()
+            model_service = AiModelService(db_client)
+            
+            # Get existing models from database
+            existing_models = await model_service.get_all_models(active_only=False)
+            existing_filenames = {model.filename for model in existing_models}
+            
+            # Scan filesystem for model files
+            if not os.path.exists(self.models_dir):
+                logger.warning(f"Models directory {self.models_dir} does not exist")
+                return {"synced": 0, "errors": 1, "errors_detail": ["Models directory not found"]}
+            
+            model_extensions = ['.safetensors', '.ckpt', '.bin']
+            model_files = []
+            
+            for ext in model_extensions:
+                pattern = os.path.join(self.models_dir, f"*{ext}")
+                model_files.extend(glob.glob(pattern))
+            
+            logger.info(f"Found {len(model_files)} model files in filesystem")
+            
+            for file_path in model_files:
+                try:
+                    filename = os.path.basename(file_path)
+                    
+                    # Skip if already in database
+                    if filename in existing_filenames:
+                        logger.debug(f"Model {filename} already exists in database, skipping")
+                        continue
+                    
+                    # Skip Flux models (not supported)
+                    if any(flux_name in filename.lower() for flux_name in ["flux", "flux-dev", "flux-kontext"]):
+                        logger.info(f"Skipping Flux model: {filename}")
+                        continue
+                    
+                    # Get file size
+                    file_size_bytes = os.path.getsize(file_path)
+                    
+                    # Auto-classify model
+                    base_model = self._classify_base_model_legacy(filename)
+                    display_name = filename.replace('.safetensors', '').replace('.ckpt', '').replace('.bin', '').replace('_', ' ').replace('-', ' ')
+                    is_nsfw = self._detect_nsfw_legacy(filename)
+                    
+                    # Create model entry
+                    model_data = {
+                        'filename': filename,
+                        'display_name': display_name,
+                        'model_type': 'SDXL',  # Use enum value
+                        'base_model': base_model,
+                        'file_path': file_path,
+                        'capability': 'text-to-image',
+                        'source': 'local',
+                        'description': f'Auto-imported model: {display_name}',
+                        'is_nsfw': is_nsfw,
+                        'file_size': file_size_bytes,
+                        'is_active': True,
+                        'usage_count': 0
+                    }
+                    
+                    # Add to database
+                    await model_service.create_model(model_data)
+                    synced_count += 1
+                    logger.info(f"✅ Added model to database: {filename}")
+                    
+                except Exception as e:
+                    error_count += 1
+                    error_msg = f"Failed to sync {filename}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+            
+            result: Dict[str, Any] = {
+                "synced": synced_count, 
+                "errors": error_count,
+                "total_found": len(model_files)
+            }
+            
+            if errors:
+                result["errors_detail"] = errors
+                
+            logger.info(f"✅ Model sync complete: {synced_count} synced, {error_count} errors")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to sync models: {e}")
+            return {"synced": 0, "errors": 1, "errors_detail": [str(e)]}
     
     async def update_usage(self, filename: str):
         """Update model usage statistics"""

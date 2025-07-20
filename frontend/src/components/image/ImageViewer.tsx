@@ -10,13 +10,26 @@ interface ImageViewerProps {
   onClose: () => void
   onToggleFavorite: (imageId: string, isFavorite: boolean) => void
   onEdit: (imageId: string) => void
+  // Navigation props
+  onPrevious?: () => void
+  onNext?: () => void
+  currentIndex?: number
+  totalCount?: number
+  hasPrevious?: boolean
+  hasNext?: boolean
 }
 
 export function ImageViewer({
   image,
   onClose,
   onToggleFavorite,
-  onEdit
+  onEdit,
+  onPrevious,
+  onNext,
+  currentIndex,
+  totalCount,
+  hasPrevious,
+  hasNext
 }: ImageViewerProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -38,6 +51,18 @@ export function ImageViewer({
         case 'F':
           onToggleFavorite(image.id, !image.isFavorite)
           break
+        case 'ArrowLeft':
+          e.preventDefault()
+          if (hasPrevious && onPrevious) {
+            onPrevious()
+          }
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          if (hasNext && onNext) {
+            onNext()
+          }
+          break
         default:
           // No action for other keys
           break
@@ -46,7 +71,7 @@ export function ImageViewer({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [image.id, image.isFavorite, showDetails, onClose, onToggleFavorite])
+  }, [image.id, image.isFavorite, showDetails, onClose, onToggleFavorite, onPrevious, onNext, hasPrevious, hasNext])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -111,18 +136,18 @@ export function ImageViewer({
         onClick={handleBackgroundClick}
       />
 
-      {/* Enhanced close button - always visible and prominent */}
+      {/* Enhanced close button - elegant and prominent */}
       <button
         onClick={onClose}
-        className="fixed top-4 right-4 z-[100] p-3 rounded-full bg-red-600/80 hover:bg-red-600 text-white transition-all duration-200 backdrop-blur-sm border border-red-500/50 shadow-lg"
+        className="fixed top-4 right-4 z-[100] p-3 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all duration-200 backdrop-blur-sm border border-white/20 shadow-xl group"
         title="Close (Escape)"
       >
         <svg
-          className="w-6 h-6"
+          className="w-6 h-6 transform group-hover:scale-110 transition-transform"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
-          strokeWidth={3}
+          strokeWidth={2.5}
         >
           <path
             strokeLinecap="round"
@@ -131,6 +156,13 @@ export function ImageViewer({
           />
         </svg>
       </button>
+
+      {/* Navigation Counter */}
+      {typeof currentIndex === 'number' && typeof totalCount === 'number' && totalCount > 1 && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-black/80 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm border border-white/20">
+          {currentIndex + 1} / {totalCount}
+        </div>
+      )}
 
       {/* Controls - simplified without delete button */}
       <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
@@ -194,6 +226,51 @@ export function ImageViewer({
           </svg>
         </button>
       </div>
+
+      {/* Navigation Arrows */}
+      {hasPrevious && onPrevious && (
+        <button
+          onClick={onPrevious}
+          className="fixed left-4 top-1/2 transform -translate-y-1/2 z-[90] p-4 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all duration-200 backdrop-blur-sm border border-white/20 shadow-xl group"
+          title="Previous Image (←)"
+        >
+          <svg
+            className="w-8 h-8 transform group-hover:scale-110 transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+      )}
+
+      {hasNext && onNext && (
+        <button
+          onClick={onNext}
+          className="fixed right-4 top-1/2 transform -translate-y-1/2 z-[90] p-4 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all duration-200 backdrop-blur-sm border border-white/20 shadow-xl group"
+          title="Next Image (→)"
+        >
+          <svg
+            className="w-8 h-8 transform group-hover:scale-110 transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Image container - truly maximized */}
       <div
@@ -318,6 +395,9 @@ export function ImageViewer({
                   <div>• Desktop: Ctrl+scroll wheel to zoom</div>
                   <div>• Mobile: Pinch to zoom</div>
                   <div>• Keyboard: I for details, Esc to close</div>
+                  {(hasPrevious || hasNext) && (
+                    <div>• Navigation: ← → arrow keys</div>
+                  )}
                   <div>• Mobile: Swipe down to close</div>
                 </div>
               </div>

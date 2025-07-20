@@ -97,9 +97,17 @@ class AiModel(Base):
     source: Mapped[str] = mapped_column(String, default="local")
     tags: Mapped[List[str]] = mapped_column(ARRAY(String), default=list)
 
-    # Configuration JSON
+    # Configuration JSON  
     supported_dimensions: Mapped[Optional[Dict[str, Any]]] = mapped_column("supportedDimensions", JSON, nullable=True)
-    recommended_settings: Mapped[Optional[Dict[str, Any]]] = mapped_column("recommendedSettings", JSON, nullable=True)
+    
+    # Prompt defaults - dedicated fields for better reliability
+    default_positive_prompt: Mapped[Optional[str]] = mapped_column("defaultPositivePrompt", Text, nullable=True)
+    default_negative_prompt: Mapped[Optional[str]] = mapped_column("defaultNegativePrompt", Text, nullable=True)
+    usage_notes: Mapped[Optional[str]] = mapped_column("usageNotes", Text, nullable=True)
+    suggested_prompts: Mapped[List[str]] = mapped_column("suggestedPrompts", ARRAY(String), default=list)
+    suggested_tags: Mapped[List[str]] = mapped_column("suggestedTags", ARRAY(String), default=list)
+    suggested_negative_prompts: Mapped[List[str]] = mapped_column("suggestedNegativePrompts", ARRAY(String), default=list)
+    suggested_negative_tags: Mapped[List[str]] = mapped_column("suggestedNegativeTags", ARRAY(String), default=list)
 
     # Analytics
     usage_count: Mapped[int] = mapped_column("usageCount", Integer, default=0)

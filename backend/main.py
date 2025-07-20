@@ -6,7 +6,7 @@ import glob
 import numpy as np
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Dict, Any
 
 # Set up logging FIRST
 logging.basicConfig(level=logging.INFO)
@@ -123,7 +123,7 @@ def get_lora_base_classification(lora_filename):
         if '_cached_loras' in globals() and _cached_loras:
             for lora in _cached_loras:
                 if lora['filename'] == lora_filename:
-                    return lora.get('compatible_base_models', ['sdxl_base'])
+                    return lora.get('compatible_bases', ['sdxl_base'])
         logger.warning(f"LoRA {lora_filename} not found in cache")
         return ['sdxl_base']  # Default fallback
     except Exception as e:
@@ -890,7 +890,7 @@ def get_available_loras(filter_by_current_model=False):
             
             filtered_loras = []
             for lora in loras:
-                compatible_bases = lora.get('compatible_base_models', ['sdxl_base'])
+                compatible_bases = lora.get('compatible_bases', ['sdxl_base'])
                 if current_model_base in compatible_bases:
                     filtered_loras.append(lora)
                 else:
@@ -1620,6 +1620,175 @@ async def list_models():
         "models": models,
         "current_model": current_model
     }
+
+@app.post("/models/sync")
+async def sync_models_from_filesystem():
+    """Sync models from filesystem to database"""
+    try:
+        logger.info("🔄 Starting model sync from filesystem...")
+        result = await model_manager.sync_models()
+        
+        # Refresh the cached models after sync
+        global _cached_models
+        _cached_models = await model_manager.get_available_models()
+        
+        logger.info(f"✅ Model sync complete: {result}")
+        return {
+            "success": True,
+            "message": f"Synced {result['synced']} new models",
+            "details": result
+        }
+    except Exception as e:
+        logger.error(f"Failed to sync models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/models/{model_filename}/config")
+async def get_model_config(model_filename: str):
+    """Get model-specific configuration including prompt defaults"""
+    try:
+        from database.sqlalchemy_client import get_db_client
+        from database.sqlalchemy_models import AiModel
+        from sqlalchemy import select
+        
+        db_client = await get_db_client()
+        
+        async with db_client.get_session() as session:
+            result = await session.execute(
+                select(AiModel).where(AiModel.filename == model_filename)
+            )
+            model = result.scalar_one_or_none()
+            
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Model '{model_filename}' not found")
+            
+            
+            # Return model configuration using dedicated database fields
+            config = {
+                "filename": model.filename,
+                "display_name": model.display_name,
+                "default_sampler": model.default_sampler,
+                "prompt_defaults": {
+                    "positive_prompt": model.default_positive_prompt or "",
+                    "negative_prompt": model.default_negative_prompt or "",
+                    "usage_notes": model.usage_notes or "",
+                    "suggested_prompts": model.suggested_prompts or [],
+                    "suggested_tags": model.suggested_tags or [],
+                    "suggested_negative_prompts": model.suggested_negative_prompts or [],
+                    "suggested_negative_tags": model.suggested_negative_tags or []
+                }
+            }
+            
+            logger.info(f"📝 Using dedicated fields - positive: {model.default_positive_prompt}, negative: {model.default_negative_prompt}, notes: {model.usage_notes}")
+            
+            logger.info(f"📦 Final config being returned: {config}")
+            return config
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get model config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/models/{model_filename}/debug")
+async def debug_model_config(model_filename: str):
+    """Debug endpoint to see raw database data"""
+    try:
+        from database.sqlalchemy_client import get_db_client
+        from database.sqlalchemy_models import AiModel
+        from sqlalchemy import select
+        
+        db_client = await get_db_client()
+        
+        async with db_client.get_session() as session:
+            result = await session.execute(
+                select(AiModel).where(AiModel.filename == model_filename)
+            )
+            model = result.scalar_one_or_none()
+            
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Model '{model_filename}' not found")
+            
+            return {
+                "filename": model.filename,
+                "dedicated_fields": {
+                    "default_positive_prompt": model.default_positive_prompt,
+                    "default_negative_prompt": model.default_negative_prompt,
+                    "usage_notes": model.usage_notes,
+                    "suggested_prompts": model.suggested_prompts,
+                    "suggested_tags": model.suggested_tags,
+                    "suggested_negative_prompts": model.suggested_negative_prompts,
+                    "suggested_negative_tags": model.suggested_negative_tags
+                }
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to debug model config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ModelConfigRequest(BaseModel):
+    prompt_defaults: Optional[Dict[str, Any]] = None
+
+@app.put("/models/{model_filename}/config")
+async def update_model_config(model_filename: str, request: ModelConfigRequest):
+    """Update model-specific configuration"""
+    logger.info(f"🔄 PUT request received for model config: '{model_filename}'")
+    logger.info(f"📝 Request data: {request}")
+    if request.prompt_defaults:
+        logger.info(f"📝 Prompt defaults: {request.prompt_defaults}")
+    
+    try:
+        from database.sqlalchemy_client import get_db_client
+        from database.sqlalchemy_models import AiModel
+        from sqlalchemy import select
+        
+        db_client = await get_db_client()
+        
+        async with db_client.get_session() as session:
+            result = await session.execute(
+                select(AiModel).where(AiModel.filename == model_filename)
+            )
+            model = result.scalar_one_or_none()
+            
+            if not model:
+                raise HTTPException(status_code=404, detail=f"Model '{model_filename}' not found")
+            
+            # Update dedicated database fields for prompt defaults
+            if request.prompt_defaults is not None:
+                logger.info(f"🔍 request.prompt_defaults received: {request.prompt_defaults}")
+                
+                # Save to dedicated database columns
+                model.default_positive_prompt = request.prompt_defaults.get("positive_prompt", "")
+                model.default_negative_prompt = request.prompt_defaults.get("negative_prompt", "")
+                model.usage_notes = request.prompt_defaults.get("usage_notes", "")
+                model.suggested_prompts = request.prompt_defaults.get("suggested_prompts", [])
+                model.suggested_tags = request.prompt_defaults.get("suggested_tags", [])
+                model.suggested_negative_prompts = request.prompt_defaults.get("suggested_negative_prompts", [])
+                model.suggested_negative_tags = request.prompt_defaults.get("suggested_negative_tags", [])
+                
+                logger.info(f"✅ Saved to dedicated fields:")
+                logger.info(f"   - positive_prompt: {repr(model.default_positive_prompt)}")
+                logger.info(f"   - negative_prompt: {repr(model.default_negative_prompt)}")
+                logger.info(f"   - usage_notes: {repr(model.usage_notes)}")
+                logger.info(f"   - suggested_prompts: {model.suggested_prompts}")
+                logger.info(f"   - suggested_tags: {model.suggested_tags}")
+                logger.info(f"   - suggested_negative_prompts: {model.suggested_negative_prompts}")
+                logger.info(f"   - suggested_negative_tags: {model.suggested_negative_tags}")
+            
+            await session.commit()
+            logger.info(f"✅ Successfully committed changes to database")
+            
+            return {
+                "success": True,
+                "message": f"Updated configuration for {model.display_name}"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update model config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/samplers")
 async def list_samplers():

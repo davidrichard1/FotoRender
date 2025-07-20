@@ -3,6 +3,7 @@ export { Button } from './button'
 export { Card, CardHeader, CardContent, CardFooter } from './card'
 export { Input } from './input'
 export { Label } from './label'
+export { ListManager } from './ListManager'
 export { Badge } from './badge'
 export { Textarea } from './textarea'
 export {
