@@ -315,7 +315,14 @@ export default function HomePage() {
     { label: '1344×768 (Ultra Wide)', width: 1344, height: 768 },
     { label: '768×1344 (Ultra Tall)', width: 768, height: 1344 },
     { label: '1536×640 (Cinematic)', width: 1536, height: 640 },
-    { label: '640×1536 (Banner)', width: 640, height: 1536 }
+    { label: '640×1536 (Banner)', width: 640, height: 1536 },
+    // Ultra-Wide Options (optimized for wide monitors while staying ~1MP)
+    { label: '1600×640 (Super Wide 2.5:1)', width: 1600, height: 640 },
+    { label: '1728×576 (Panoramic 3:1)', width: 1728, height: 576 },
+    { label: '1792×576 (Extra Wide 3.1:1)', width: 1792, height: 576 },
+    { label: '1920×544 (Dual 4K Base - 4x upscale to 7680×2176)', width: 1920, height: 544 },
+    { label: '1280×360 (Dual 1440p Base - 4x upscale to 5120×1440)', width: 1280, height: 360 },
+    { label: '2048×512 (Extreme Wide 4:1)', width: 2048, height: 512 }
   ]
 
   // ===== API FUNCTIONS =====
