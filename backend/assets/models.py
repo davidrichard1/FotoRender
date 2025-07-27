@@ -68,15 +68,15 @@ class ModelManager:
                 return model
         return None
     
-    async def get_nsfw_models(self, include_nsfw: bool = False) -> List[Dict[str, Any]]:
+    async def get_gated_models(self, include_gated: bool = False) -> List[Dict[str, Any]]:
         """
-        Get models filtered by NSFW content
+        Get models filtered by gated content
         """
         all_models = await self.get_available_models()
-        if include_nsfw:
+        if include_gated:
             return all_models
         else:
-            return [model for model in all_models if not model.get("is_nsfw", False)]
+            return [model for model in all_models if not model.get("is_gated", False)]
     
     async def get_recommended_model(self, preference: str = "quality") -> Optional[Dict[str, Any]]:
         """
@@ -91,7 +91,7 @@ class ModelManager:
         if preference == "quality":
             # Prefer NoobAI models for quality
             for model in models:
-                if model.get("base_model") == "noobai" and not model.get("is_nsfw", False):
+                if model.get("base_model") == "noobai" and not model.get("is_gated", False):
                     return model
         elif preference == "fast":
             # Return first available model

@@ -79,7 +79,7 @@ class ApiModel(BaseModel):
     source: str = "local"
     base_model: str = "SDXL"
     description: Optional[str] = None
-    is_nsfw: bool = False
+    is_gated: bool = False
     file_size_mb: Optional[float] = None
     usage_count: int = 0
     last_used: Optional[str] = None
@@ -90,7 +90,7 @@ class ApiLora(BaseModel):
     path: str
     category: str = "general"
     description: Optional[str] = None
-    is_nsfw: bool = False
+    is_gated: bool = False
     trigger_words: Optional[List[str]] = None
     default_scale: float = 1.0
     min_scale: float = 0.0
@@ -165,7 +165,7 @@ def scan_models_directory():
                     "source": "local",
                     "base_model": "SDXL",
                     "description": None,
-                    "is_nsfw": False,
+                    "is_gated": False,
                     "file_size_mb": round(file_size, 2),
                     "usage_count": 0,
                     "last_used": None
@@ -189,7 +189,7 @@ def scan_loras_directory():
                     "display_name": file.replace('.safetensors', ''),
                     "path": file_path,
                     "category": "general",
-                    "is_nsfw": False,
+                    "is_gated": False,
                     "usage_count": 0,
                     "last_used": None,
                     "size_mb": round(file_size / (1024 * 1024), 1),

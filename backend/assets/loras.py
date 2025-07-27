@@ -51,7 +51,7 @@ class LoraManager:
                     "display_name": lora.display_name,
                     "description": lora.description,
                     "category": lora.category.value if hasattr(lora.category, 'value') else str(lora.category) if lora.category else "GENERAL",
-                    "is_nsfw": lora.is_nsfw,
+                    "is_gated": lora.is_gated,
                     "trigger_words": lora.trigger_words or [],
                     "default_scale": lora.default_scale,
                     "recommended_min": lora.recommended_min,
@@ -98,9 +98,7 @@ class LoraManager:
         elif any(pattern in filename_lower for pattern in ['anime', 'cartoon', 'art']):
             classifications.append('stylized')
         
-        # NSFW detection - including main.py references
-        if any(pattern in filename_lower for pattern in ['nsfw', 'nature', 'cock', 'adult', 'naturecock']):
-            classifications.append('nsfw')
+        # Gated content detection disabled - manual classification only
             
         return classifications if classifications else ['general']
     
@@ -120,10 +118,6 @@ class LoraManager:
         }
         
         # Adjust based on classifications
-        if 'nsfw' in classifications:
-            guidelines["trigger_words"] = ["explicit content", "adult themes"]
-            guidelines["recommended_scale"] = 0.6
-        
         if 'realistic' in classifications:
             guidelines["recommended_scale"] = 0.9
             guidelines["trigger_words"].extend(["photorealistic", "detailed"])
@@ -138,16 +132,16 @@ class LoraManager:
         all_loras = await self.get_available_loras()
         return [lora for lora in all_loras if lora.get("category", "").upper() == category.upper()]
     
-    async def get_nsfw_loras(self, include_nsfw: bool = False) -> List[Dict[str, Any]]:
+    async def get_gated_loras(self, include_gated: bool = False) -> List[Dict[str, Any]]:
         """
-        Get LoRAs filtered by NSFW content
-        Database now handles NSFW classification including "n1-naturecock" references
+        Get LoRAs filtered by gated content
+        Database now handles manual gated classification
         """
         all_loras = await self.get_available_loras()
-        if include_nsfw:
+        if include_gated:
             return all_loras
         else:
-            return [lora for lora in all_loras if not lora.get("is_nsfw", False)]
+            return [lora for lora in all_loras if not lora.get("is_gated", False)]
     
     async def get_compatible_loras(self, model_base_type: str) -> List[Dict[str, Any]]:
         """
@@ -177,7 +171,7 @@ class LoraManager:
                         "display_name": lora.display_name,
                         "description": lora.description,
                         "category": lora.category.value if hasattr(lora.category, 'value') else str(lora.category) if lora.category else "GENERAL",
-                        "is_nsfw": lora.is_nsfw,
+                        "is_gated": lora.is_gated,
                         "trigger_words": lora.trigger_words or [],
                         "default_scale": lora.default_scale,
                         "recommended_min": lora.recommended_min,
@@ -269,7 +263,7 @@ class LoraManager:
         all_loras = await self.get_available_loras()
         
         total_loras = len(all_loras)
-        nsfw_count = len([l for l in all_loras if l.get("is_nsfw", False)])
+        gated_count = len([l for l in all_loras if l.get("is_gated", False)])
         
         # Count by category
         category_counts = {}
@@ -286,8 +280,8 @@ class LoraManager:
         
         return {
             "total_loras": total_loras,
-            "nsfw_count": nsfw_count,
-            "sfw_count": total_loras - nsfw_count,
+            "gated_count": gated_count,
+            "open_count": total_loras - gated_count,
             "category_counts": category_counts,
             "most_used": [{"filename": l["filename"], "usage_count": l.get("usage_count", 0)} for l in most_used]
         } 

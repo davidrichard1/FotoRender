@@ -32,7 +32,7 @@ interface ModelFormData {
   capability: string
   source: string
   description: string
-  is_nsfw: boolean
+  is_gated: boolean
   file_size_mb: number | null
   // Prompt defaults configuration
   prompt_defaults: {
@@ -144,7 +144,7 @@ export default function ModelModal({
     capability: 'text-to-image',
     source: 'local',
     description: '',
-    is_nsfw: false,
+    is_gated: false,
     file_size_mb: null,
     prompt_defaults: {
       positive_prompt: '',
@@ -221,7 +221,7 @@ export default function ModelModal({
           capability: model.capability,
           source: model.source,
           description: model.description || '',
-          is_nsfw: model.is_nsfw,
+          is_gated: model.is_gated,
           file_size_mb: model.file_size_mb,
           prompt_defaults: {
             positive_prompt: '',
@@ -246,7 +246,7 @@ export default function ModelModal({
           capability: 'text-to-image',
           source: 'local',
           description: '',
-          is_nsfw: false,
+          is_gated: false,
           file_size_mb: null,
           prompt_defaults: {
             positive_prompt: '',
@@ -542,16 +542,16 @@ export default function ModelModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="is_nsfw">NSFW Content</Label>
+              <Label htmlFor="is_gated">Gated Content</Label>
               <div className="flex items-center gap-2">
                 <Switch
-                  id="is_nsfw"
-                  checked={formData.is_nsfw}
-                  onCheckedChange={(checked: boolean) => handleInputChange('is_nsfw', checked)
+                  id="is_gated"
+                  checked={formData.is_gated}
+                  onCheckedChange={(checked: boolean) => handleInputChange('is_gated', checked)
                   }
                 />
                 <span className="text-sm text-muted-foreground">
-                  Mark if this model generates adult content
+                  Mark if this model generates gated content
                 </span>
               </div>
             </div>

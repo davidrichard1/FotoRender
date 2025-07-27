@@ -113,9 +113,9 @@ export function ModelSelector({
                           ? `${model.file_size_mb.toFixed(0)}MB`
                           : '?MB'}
                       </span>
-                      {model.is_nsfw && (
+                      {model.is_gated && (
                         <span className="text-xs bg-red-500/20 text-red-400 px-1 py-0.5 rounded">
-                          NSFW
+                          Gated
                         </span>
                       )}
                     </div>

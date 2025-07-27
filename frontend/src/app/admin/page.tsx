@@ -29,7 +29,7 @@ interface LoRa {
   displayName: string
   description?: string
   category: string
-  isNsfw: boolean
+  isGated: boolean
   isActive: boolean
   compatibleBases: string[]
   usageCount: number
@@ -125,7 +125,7 @@ interface AiModel {
   description?: string
   modelType: 'SDXL' | 'SD15' | 'FLUX' | 'OTHER'
   baseModel: string
-  isNsfw: boolean
+  isGated: boolean
   isActive: boolean
   author?: string
   version?: string
@@ -243,7 +243,7 @@ export default function AdminPage() {
       source: 'local',
       base_model: model.baseModel.toLowerCase().replace('_', '-'),
       description: model.description || '',
-      is_nsfw: model.isNsfw,
+      is_gated: model.isGated,
       file_size_mb: null,
       usage_count: model.usageCount,
       last_used: model.lastUsed || null
@@ -312,7 +312,7 @@ export default function AdminPage() {
       display_name: lora.displayName,
       description: lora.description || '',
       category: lora.category,
-      is_nsfw: lora.isNsfw,
+      is_gated: lora.isGated,
       trigger_words: [],
       default_scale: 1.0,
       min_scale: -5.0,

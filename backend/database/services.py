@@ -60,7 +60,7 @@ class ModelManager:
                         "source": db_model.source,
                         "base_model": base_model.lower().replace("_", "-"),
                         "description": db_model.description,
-                        "is_nsfw": db_model.is_nsfw,
+                        "is_gated": db_model.is_gated,
                         "file_size_mb": db_model.file_size,
                         "usage_count": db_model.usage_count,
                         "last_used": db_model.last_used.isoformat() if db_model.last_used else None,
@@ -109,7 +109,7 @@ class ModelManager:
                 "source": "local",
                 "base_model": base_model,
                 "description": None,
-                "is_nsfw": self._detect_nsfw_legacy(filename),
+                "is_gated": self._detect_gated_legacy(filename),
                 "file_size_mb": None,
                 "usage_count": 0,
                 "last_used": None,
@@ -126,19 +126,18 @@ class ModelManager:
             "indigofurrymixXL_noobaieps6", "indigofurrymixXL_noobaiepsreal5"
         ]):
             return "noobai"
-        elif any(pony in filename_lower for pony in ["waianiNSFWPONYXL", "ponyxl", "pony"]):
+        elif any(pony in filename_lower for pony in ["ponyxl", "pony"]):
             return "ponyxl"
         elif any(illustrious in filename_lower for illustrious in [
-            "wai-nsfw-illustrious-sdxl", "illustrious", "yiffinhell"
+            "illustrious", "yiffinhell"
         ]):
             return "illustrious"
         else:
             return "sdxl_base"
     
-    def _detect_nsfw_legacy(self, filename: str) -> bool:
-        """Legacy NSFW detection"""
-        filename_lower = filename.lower()
-        return any(nsfw in filename_lower for nsfw in ["nsfw", "adult", "xxx"])
+    def _detect_gated_legacy(self, filename: str) -> bool:
+        """Disabled - no automatic gated content detection"""
+        return False
     
     async def sync_models(self) -> Dict[str, Any]:
         """Sync models from filesystem to database"""
@@ -188,7 +187,7 @@ class ModelManager:
                     # Auto-classify model
                     base_model = self._classify_base_model_legacy(filename)
                     display_name = filename.replace('.safetensors', '').replace('.ckpt', '').replace('.bin', '').replace('_', ' ').replace('-', ' ')
-                    is_nsfw = self._detect_nsfw_legacy(filename)
+                    is_gated = self._detect_gated_legacy(filename)
                     
                     # Create model entry
                     model_data = {
@@ -200,7 +199,7 @@ class ModelManager:
                         'capability': 'text-to-image',
                         'source': 'local',
                         'description': f'Auto-imported model: {display_name}',
-                        'is_nsfw': is_nsfw,
+                        'is_gated': is_gated,
                         'file_size': file_size_bytes,
                         'is_active': True,
                         'usage_count': 0
@@ -304,7 +303,7 @@ class LoraManager:
                     "supported_models": ["sdxl"],
                     "compatible_bases": self._get_compatible_bases_from_db(db_lora),
                     "source": db_lora.source,
-                    "is_nsfw": db_lora.is_nsfw,
+                    "is_gated": db_lora.is_gated,
                     # Scale configuration
                     "scale_config": {
                         "default_scale": db_lora.default_scale,
@@ -399,7 +398,7 @@ class LoraManager:
                 "supported_models": ["sdxl"],
                 "compatible_bases": compatible_bases,
                 "source": "local",
-                "is_nsfw": self._detect_nsfw_legacy(filename),
+                "is_gated": self._detect_gated_legacy(filename),
                 "scale_config": {
                     "default_scale": guidelines["recommended_scale"],
                     "recommended_scale": guidelines["recommended_scale"],
@@ -469,11 +468,9 @@ class LoraManager:
             "category": "general"
         }
     
-    def _detect_nsfw_legacy(self, filename: str) -> bool:
-        """Legacy NSFW detection"""
-        filename_lower = filename.lower()
-        nsfw_indicators = ["nsfw", "adult", "xxx", "erotic", "hentai", "naturecock"]
-        return any(indicator in filename_lower for indicator in nsfw_indicators)
+    def _detect_gated_legacy(self, filename: str) -> bool:
+        """Disabled - no automatic gated content detection"""
+        return False
 
 class EmbeddingManager:
     """High-level manager for embeddings"""
@@ -524,7 +521,7 @@ class EmbeddingManager:
                 "format": "safetensors",
                 "supported_models": ["sdxl"],
                 "source": "local",
-                "is_nsfw": False,
+                "is_gated": False,
                 "description": f"Embedding for {trigger_word}",
                 "usage_count": 0,
             })

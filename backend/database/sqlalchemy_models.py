@@ -49,7 +49,7 @@ class LoraCategory(str, Enum):
     POSE = "POSE"
     LIGHTING = "LIGHTING"
     EXPERIMENTAL = "EXPERIMENTAL"
-    NSFW = "NSFW"
+    GATED = "GATED"
 
 
 class VaeType(str, Enum):
@@ -85,7 +85,7 @@ class AiModel(Base):
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Configuration
-    is_nsfw: Mapped[bool] = mapped_column("isNsfw", Boolean, default=False)
+    is_gated: Mapped[bool] = mapped_column("isGated", Boolean, default=False)
     is_active: Mapped[bool] = mapped_column("isActive", Boolean, default=True)
     default_sampler: Mapped[str] = mapped_column("defaultSampler", String, default="DPM++ 2M SDE Karras")
 
@@ -124,7 +124,7 @@ class AiModel(Base):
         Index("idx_aimodel_model_type", "modelType"),
         Index("idx_aimodel_base_model", "baseModel"),
         Index("idx_aimodel_is_active", "isActive"),
-        Index("idx_aimodel_is_nsfw", "isNsfw"),
+        Index("idx_aimodel_is_gated", "isGated"),
         Index("idx_aimodel_usage_count", "usageCount"),
     )
 
@@ -144,7 +144,7 @@ class Lora(Base):
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Configuration
-    is_nsfw: Mapped[bool] = mapped_column("isNsfw", Boolean, default=False)
+    is_gated: Mapped[bool] = mapped_column("isGated", Boolean, default=False)
     is_active: Mapped[bool] = mapped_column("isActive", Boolean, default=True)
 
     # Scale configuration
@@ -179,7 +179,7 @@ class Lora(Base):
     __table_args__ = (
         Index("idx_lora_category", "category"),
         Index("idx_lora_is_active", "isActive"),
-        Index("idx_lora_is_nsfw", "isNsfw"),
+        Index("idx_lora_is_gated", "isGated"),
         Index("idx_lora_usage_count", "usageCount"),
     )
 

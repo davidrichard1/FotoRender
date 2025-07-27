@@ -372,7 +372,7 @@ export default function CompatibilityManager() {
                     <Button
                       onClick={() => setBulkCompatibility(
                         models
-                          .filter((m) => !m.is_nsfw)
+                          .filter((m) => !m.is_gated)
                           .map((m) => m.filename),
                       )
                       }

@@ -864,7 +864,7 @@ async def get_available_loras_async(filter_by_current_model=False):
 def get_available_loras(filter_by_current_model=False):
     """
     🗄️ DATABASE-DRIVEN: Get available LoRAs from database (sync version)
-    REPLACES: Hardcoded filesystem scanning with NSFW LoRA references
+    REPLACES: Hardcoded filesystem scanning with gated LoRA references
     """
     try:
         # Fallback to filesystem scan for sync version to avoid async context issues
@@ -1340,7 +1340,7 @@ def get_embedding_suggestions_for_text(text):
 async def lifespan(app: FastAPI):
     # Startup
     global pipeline, _cached_models, _cached_loras, _cached_vaes, _cached_upscalers, _cached_embeddings
-    logger.info("🗄️ Starting up - PURE DATABASE-DRIVEN MODE (no hardcoded NSFW references)")
+    logger.info("🗄️ Starting up - PURE DATABASE-DRIVEN MODE (no hardcoded gated content references)")
     
     # 🗄️ Pre-populate GLOBAL caches for pure database-driven sync functions
     try:
@@ -1392,7 +1392,7 @@ async def lifespan(app: FastAPI):
     
     models = _cached_models
     if models:
-        # 🗄️ DATABASE-DRIVEN: Load first available model (no hardcoded NSFW preferences)
+        # 🗄️ DATABASE-DRIVEN: Load first available model (no hardcoded gated content preferences)
         default_model = models[0]["path"]
         default_model_type = models[0].get("type", "sdxl")
         
@@ -3202,7 +3202,7 @@ async def create_lora(lora_data: dict):
             "display_name": lora_data.get("display_name", lora_data["filename"].replace('.safetensors', '')),
             "description": lora_data.get("description"),
             "category": lora_data.get("category", "GENERAL"),
-            "is_nsfw": lora_data.get("is_nsfw", False),
+            "is_gated": lora_data.get("is_gated", False),
             "is_active": True,
             "default_scale": lora_data.get("default_scale", 1.0),
             "min_scale": lora_data.get("min_scale", -5.0),
@@ -3259,8 +3259,8 @@ async def update_lora(lora_filename: str, lora_data: dict):
                 lora.description = lora_data["description"]
             if "category" in lora_data:
                 lora.category = lora_data["category"]
-            if "is_nsfw" in lora_data:
-                lora.is_nsfw = lora_data["is_nsfw"]
+            if "is_gated" in lora_data:
+                lora.is_gated = lora_data["is_gated"]
             if "default_scale" in lora_data:
                 lora.default_scale = lora_data["default_scale"]
             if "min_scale" in lora_data:

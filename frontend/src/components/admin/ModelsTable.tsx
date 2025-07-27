@@ -26,7 +26,7 @@ interface AiModel {
   description?: string
   modelType: 'SDXL' | 'SD15' | 'FLUX' | 'OTHER'
   baseModel: string
-  isNsfw: boolean
+  isGated: boolean
   isActive: boolean
   author?: string
   version?: string
@@ -62,7 +62,7 @@ const convertApiModelToUiModel = (
       (apiModel.type?.toUpperCase() as 'SDXL' | 'SD15' | 'FLUX' | 'OTHER')
       || 'SDXL',
     baseModel,
-    isNsfw: apiModel.is_nsfw,
+    isGated: apiModel.is_gated,
     isActive: true, // Assume all models from API are active
     author: 'Unknown', // API doesn't provide author info yet
     version: undefined,
@@ -170,8 +170,8 @@ export const ModelsTable: React.FC<ModelsTableProps> = ({
         ),
       },
       {
-        accessorKey: 'isNsfw',
-        header: 'NSFW',
+        accessorKey: 'isGated',
+        header: 'Gated',
         cell: ({ getValue }) => (
           <Badge
             className={

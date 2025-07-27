@@ -112,7 +112,6 @@ class LocalGPUWorker:
         EXACT COPY of main.py lifespan initialization
         This mirrors the FastAPI lifespan function 1:1
         """
-        logger.info("🗄️ Starting up - PURE DATABASE-DRIVEN MODE (no hardcoded NSFW references)")
         
         # 🗄️ Pre-populate GLOBAL caches for pure database-driven sync functions
         # EXACT same order and approach as main.py lifespan
@@ -166,7 +165,7 @@ class LocalGPUWorker:
         # Load default model EXACTLY like main.py lifespan
         models = main._cached_models
         if models:
-            # 🗄️ DATABASE-DRIVEN: Load first available model (no hardcoded NSFW preferences)
+            # 🗄️ DATABASE-DRIVEN: Load first available model
             default_model = models[0]["path"]
             default_model_type = models[0].get("type", "sdxl")
             

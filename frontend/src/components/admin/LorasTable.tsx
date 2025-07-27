@@ -25,7 +25,7 @@ interface LoRa {
   displayName: string
   description?: string
   category: string
-  isNsfw: boolean
+  isGated: boolean
   isActive: boolean
   compatibleBases: string[]
   usageCount: number
@@ -43,7 +43,7 @@ const convertApiLoraToUiLora = (apiLora: ApiLora, index: number): LoRa => ({
       apiLora.display_name || apiLora.filename.replace('.safetensors', ''),
   description: apiLora.description || undefined,
   category: apiLora.category || 'CHARACTER',
-  isNsfw: apiLora.is_nsfw || false,
+  isGated: apiLora.is_gated || false,
   isActive: true, // Assume all LoRAs from API are active
   compatibleBases: apiLora.compatible_bases || ['sdxl'],
   usageCount: apiLora.usage_count || 0,
@@ -154,8 +154,8 @@ export const LorasTable: React.FC<LorasTableProps> = ({
         },
       },
       {
-        accessorKey: 'isNsfw',
-        header: 'NSFW',
+        accessorKey: 'isGated',
+        header: 'Gated',
         cell: ({ getValue }) => (
           <Badge
             className={

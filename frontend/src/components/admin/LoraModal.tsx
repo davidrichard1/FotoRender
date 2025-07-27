@@ -33,7 +33,7 @@ const LORA_CATEGORIES = [
   'POSE',
   'LIGHTING',
   'EXPERIMENTAL',
-  'NSFW',
+  'GATED',
 ] as const
 
 type LoraCategory = (typeof LORA_CATEGORIES)[number]
@@ -44,7 +44,7 @@ interface LoraFormData {
   displayName: string
   description: string
   category: LoraCategory
-  isNsfw: boolean
+  isGated: boolean
   isActive: boolean
   defaultScale: number
   minScale: number
@@ -83,7 +83,7 @@ export default function LoraModal({
     displayName: '',
     description: '',
     category: 'GENERAL',
-    isNsfw: false,
+    isGated: false,
     isActive: true,
     defaultScale: 1.0,
     minScale: -5.0,
@@ -109,7 +109,7 @@ export default function LoraModal({
             lora.display_name || lora.filename.replace('.safetensors', ''),
           description: lora.description || '',
           category: (lora.category as LoraCategory) || 'GENERAL',
-          isNsfw: lora.is_nsfw || false,
+          isGated: lora.is_gated || false,
           isActive: true, // Assume active
           defaultScale: lora.default_scale || 1.0,
           minScale: lora.min_scale || -5.0,
@@ -130,7 +130,7 @@ export default function LoraModal({
           displayName: '',
           description: '',
           category: 'GENERAL',
-          isNsfw: false,
+          isGated: false,
           isActive: true,
           defaultScale: 1.0,
           minScale: -5.0,
@@ -246,7 +246,7 @@ export default function LoraModal({
         display_name: formData.displayName,
         description: formData.description,
         category: formData.category,
-        is_nsfw: formData.isNsfw,
+        is_gated: formData.isGated,
         default_scale: formData.defaultScale,
         min_scale: formData.minScale,
         max_scale: formData.maxScale,
@@ -387,12 +387,12 @@ export default function LoraModal({
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="isNsfw"
-                      checked={formData.isNsfw}
-                      onCheckedChange={(checked) => handleInputChange('isNsfw', checked)
+                      id="isGated"
+                      checked={formData.isGated}
+                      onCheckedChange={(checked) => handleInputChange('isGated', checked)
                       }
                     />
-                    <Label htmlFor="isNsfw">NSFW Content</Label>
+                    <Label htmlFor="isGated">Gated Content</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">

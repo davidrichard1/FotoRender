@@ -275,7 +275,7 @@ class LoraService:
                             'filePath': 'file_path',
                             'fileSize': 'file_size',
                             'checksum': 'checksum',
-                            'isNsfw': 'is_nsfw',
+                            'isGated': 'is_gated',
                             'isActive': 'is_active',
                             'defaultScale': 'default_scale',
                             'minScale': 'min_scale',
