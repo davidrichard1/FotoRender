@@ -32,15 +32,47 @@ const nextConfig: NextConfig = {
     unoptimized: false,
     loader: 'default',
   },
-  // Headers for better caching
+  // Headers for better caching + CORS for iPad access
   async headers() {
     return [
+      {
+        // Allow all API routes to be accessed from iPad
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*', // Allow all origins for API routes
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+      {
+        // Allow all pages to be accessed from iPad  
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
       {
         source: '/_next/image/:path*',
         headers: [
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, s-maxage=31536000', // 24h for browser, 1 year for CDN
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
           },
         ],
       },
@@ -50,6 +82,10 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, immutable',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
           },
         ],
       },
