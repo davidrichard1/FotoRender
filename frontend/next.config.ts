@@ -5,6 +5,13 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['@pandacss/dev'],
   },
+  // Allow cross-origin requests from local network IPs during development
+  allowedDevOrigins: [
+    '10.0.0.88',
+    '192.168.1.0/24', // Common local network range
+    '10.0.0.0/24',    // Your network range
+    '172.16.0.0/24',  // Docker network range
+  ],
   images: {
     remotePatterns: [
       {
@@ -20,8 +27,8 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
-    // Image optimization settings for better caching
-    minimumCacheTTL: 86400, // 24 hours in seconds
+    // Image optimization settings for better caching (less aggressive for network access)
+    minimumCacheTTL: 3600, // 1 hour in seconds (reduced from 24 hours)
     formats: ['image/avif', 'image/webp'], // Modern formats for better compression
     dangerouslyAllowSVG: false,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
@@ -68,7 +75,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400, s-maxage=31536000', // 24h for browser, 1 year for CDN
+            value: 'public, max-age=3600, s-maxage=86400', // 1h for browser, 24h for CDN (less aggressive)
           },
           {
             key: 'Access-Control-Allow-Origin',
@@ -81,7 +88,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=86400, immutable',
+            value: 'public, max-age=3600', // 1 hour, removed immutable for network flexibility
           },
           {
             key: 'Access-Control-Allow-Origin',

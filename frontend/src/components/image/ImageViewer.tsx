@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import NextImage from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Image as ImageType } from '@/types/image'
 import { SmartImage } from './SmartImage'
 
@@ -17,6 +18,8 @@ interface ImageViewerProps {
   totalCount?: number
   hasPrevious?: boolean
   hasNext?: boolean
+  // Details prop
+  showDetailsDefault?: boolean
 }
 
 export function ImageViewer({
@@ -29,12 +32,32 @@ export function ImageViewer({
   currentIndex,
   totalCount,
   hasPrevious,
-  hasNext
+  hasNext,
+  showDetailsDefault = false
 }: ImageViewerProps) {
-  const [showDetails, setShowDetails] = useState(false)
+  const [showDetails, setShowDetails] = useState(showDetailsDefault)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const imageRef = useRef<HTMLImageElement>(null)
+  const router = useRouter()
+
+  const handleUsePrompt = () => {
+    if (image.isPromptData && image.prompt) {
+      // Store the prompt data in localStorage for the generate page to pick up
+      const promptData = {
+        positive_prompt: image.prompt,
+        negative_prompt: image.negative_prompt || '',
+        timestamp: Date.now()
+      }
+      localStorage.setItem('auto_fill_prompt', JSON.stringify(promptData))
+      
+      // Navigate to the generate page
+      router.push('/')
+      
+      // Close the modal
+      onClose()
+    }
+  }
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -338,70 +361,142 @@ export function ImageViewer({
       {showDetails && (
         <div className="absolute bottom-4 left-4 right-4 z-20">
           <div className="bg-black/80 backdrop-blur-sm rounded-xl p-6 text-white max-h-64 overflow-y-auto border border-white/20">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold text-lg mb-3 text-yellow-300">
-                  {image.title}
-                </h3>
-                {image.description && (
-                  <p className="text-sm text-gray-300 mb-4">
-                    {image.description}
-                  </p>
-                )}
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Created:</span>
-                    <span>
-                      {new Date(image.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Platform:</span>
-                    <span>{image.platform}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Favorite:</span>
-                    <span>{image.isFavorite ? '⭐ Yes' : 'No'}</span>
-                  </div>
+            {image.isPromptData ? (
+              // Prompt-specific details
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg text-yellow-300">
+                    {image.title}
+                  </h3>
+                  {/* Use Prompt Button */}
+                  {image.prompt && (
+                    <button
+                      onClick={handleUsePrompt}
+                      className="px-4 py-2 bg-[#00D4AA] text-black rounded-lg font-medium hover:bg-[#00D4AA]/90 transition-colors flex items-center gap-2 text-sm"
+                      title="Use this prompt in the generator"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Use Prompt
+                    </button>
+                  )}
                 </div>
-              </div>
-
-              <div>
-                {image.tags.length > 0 && (
-                  <div className="mb-4">
-                    <span className="text-gray-400 text-sm mb-2 block">
-                      Tags:
+                
+                {/* Positive Prompt */}
+                {image.prompt && (
+                  <div>
+                    <span className="text-gray-400 text-sm font-medium block mb-2">
+                      Positive Prompt:
                     </span>
-                    <div className="flex flex-wrap gap-2">
-                      {image.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 rounded-full text-xs font-medium border"
-                          style={{
-                            backgroundColor: `${tag.color}20`,
-                            color: tag.color,
-                            borderColor: `${tag.color}40`
-                          }}
-                        >
-                          {tag.name}
-                        </span>
-                      ))}
+                    <p className="text-sm text-gray-200 bg-gray-900/50 rounded p-3 border border-gray-700">
+                      {image.prompt}
+                    </p>
+                  </div>
+                )}
+
+                {/* Negative Prompt */}
+                {image.negative_prompt && (
+                  <div>
+                    <span className="text-gray-400 text-sm font-medium block mb-2">
+                      Negative Prompt:
+                    </span>
+                    <p className="text-sm text-gray-200 bg-gray-900/50 rounded p-3 border border-gray-700">
+                      {image.negative_prompt}
+                    </p>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-gray-700">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Created:</span>
+                      <span>{new Date(image.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Platform:</span>
+                      <span>{image.platform}</span>
                     </div>
                   </div>
-                )}
-
-                <div className="text-xs text-gray-400 space-y-1">
-                  <div className="font-medium text-gray-300">Controls:</div>
-                  <div>• Desktop: Ctrl+scroll wheel to zoom</div>
-                  <div>• Mobile: Pinch to zoom</div>
-                  <div>• Keyboard: I for details, Esc to close</div>
-                  {(hasPrevious || hasNext) && (
-                    <div>• Navigation: ← → arrow keys</div>
-                  )}
-                  <div>• Mobile: Swipe down to close</div>
+                  
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div className="font-medium text-gray-300">Controls:</div>
+                    <div>• Desktop: Ctrl+scroll wheel to zoom</div>
+                    <div>• Keyboard: I for details, Esc to close</div>
+                    {(hasPrevious || hasNext) && (
+                      <div>• Navigation: ← → arrow keys</div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              // Generic image details
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 text-yellow-300">
+                    {image.title}
+                  </h3>
+                  {image.description && (
+                    <p className="text-sm text-gray-300 mb-4">
+                      {image.description}
+                    </p>
+                  )}
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Created:</span>
+                      <span>
+                        {new Date(image.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Platform:</span>
+                      <span>{image.platform}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Favorite:</span>
+                      <span>{image.isFavorite ? '⭐ Yes' : 'No'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {image.tags.length > 0 && (
+                    <div className="mb-4">
+                      <span className="text-gray-400 text-sm mb-2 block">
+                        Tags:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {image.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="px-3 py-1 rounded-full text-xs font-medium border"
+                            style={{
+                              backgroundColor: `${tag.color}20`,
+                              color: tag.color,
+                              borderColor: `${tag.color}40`
+                            }}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div className="font-medium text-gray-300">Controls:</div>
+                    <div>• Desktop: Ctrl+scroll wheel to zoom</div>
+                    <div>• Mobile: Pinch to zoom</div>
+                    <div>• Keyboard: I for details, Esc to close</div>
+                    {(hasPrevious || hasNext) && (
+                      <div>• Navigation: ← → arrow keys</div>
+                    )}
+                    <div>• Mobile: Swipe down to close</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

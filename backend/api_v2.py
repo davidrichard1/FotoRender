@@ -1062,33 +1062,55 @@ async def get_prompt(prompt_id: str):
             if not prompt_obj:
                 raise HTTPException(status_code=404, detail="Prompt not found")
             
-            # Access all attributes while still in session context
-            prompt_data = FavoritePromptDetail(
-                id=prompt_obj.id,
-                title=prompt_obj.title,
-                prompt=prompt_obj.prompt,
-                negative_prompt=prompt_obj.negative_prompt,
-                description=prompt_obj.description,
-                image_url=prompt_obj.image_cdn_url or get_cdn_url_from_r2(prompt_obj.image_r2_url, prompt_obj.thumbnail_cdn_url),
-                image_r2_url=prompt_obj.image_r2_url,  # Include R2 URL as fallback
-                thumbnail_url=prompt_obj.thumbnail_cdn_url,
-                created_at=prompt_obj.created_at.isoformat() if prompt_obj.created_at else "",
-                parameters={
-                    "width": prompt_obj.width,
-                    "height": prompt_obj.height,
-                    "steps": prompt_obj.steps,
-                    "guidance_scale": prompt_obj.guidance_scale,
-                    "seed": prompt_obj.seed,
-                    "sampler": prompt_obj.sampler,
-                    "clip_skip": prompt_obj.clip_skip,
-                },
-                loras_used=prompt_obj.loras_used or [],
-                model_name=prompt_obj.model_id,
-                tags=prompt_obj.tags or [],
-                is_public=prompt_obj.is_public,
-            )
+            # Access all attributes while still in session context and store them
+            prompt_id_val = prompt_obj.id
+            title_val = prompt_obj.title
+            prompt_val = prompt_obj.prompt
+            negative_prompt_val = prompt_obj.negative_prompt
+            description_val = prompt_obj.description
+            image_cdn_url_val = prompt_obj.image_cdn_url
+            image_r2_url_val = prompt_obj.image_r2_url
+            thumbnail_cdn_url_val = prompt_obj.thumbnail_cdn_url
+            created_at_val = prompt_obj.created_at
+            width_val = prompt_obj.width
+            height_val = prompt_obj.height
+            steps_val = prompt_obj.steps
+            guidance_scale_val = prompt_obj.guidance_scale
+            seed_val = prompt_obj.seed
+            sampler_val = prompt_obj.sampler
+            clip_skip_val = prompt_obj.clip_skip
+            loras_used_val = prompt_obj.loras_used
+            model_id_val = prompt_obj.model_id
+            tags_val = prompt_obj.tags
+            is_public_val = prompt_obj.is_public
             
-            return prompt_data
+        # Build the response using stored values (outside session context)
+        prompt_data = FavoritePromptDetail(
+            id=prompt_id_val,
+            title=title_val,
+            prompt=prompt_val,
+            negative_prompt=negative_prompt_val,
+            description=description_val,
+            image_url=image_cdn_url_val or get_cdn_url_from_r2(image_r2_url_val, thumbnail_cdn_url_val),
+            image_r2_url=image_r2_url_val,  # Include R2 URL as fallback
+            thumbnail_url=thumbnail_cdn_url_val,
+            created_at=created_at_val.isoformat() if created_at_val else "",
+            parameters={
+                "width": width_val,
+                "height": height_val,
+                "steps": steps_val,
+                "guidance_scale": guidance_scale_val,
+                "seed": seed_val,
+                "sampler": sampler_val,
+                "clip_skip": clip_skip_val,
+            },
+            loras_used=loras_used_val or [],
+            model_name=model_id_val,
+            tags=tags_val or [],
+            is_public=is_public_val,
+        )
+        
+        return prompt_data
     except HTTPException:
         raise
     except Exception as e:

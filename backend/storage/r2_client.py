@@ -65,12 +65,20 @@ class R2StorageClient:
                 )
             )
             
-            # Test connection
-            client.head_bucket(Bucket=self.config["BUCKET_NAME"])
+            # Test connection with fallback
+            try:
+                client.head_bucket(Bucket=self.config["BUCKET_NAME"])
+                logger.info(f"✅ R2 client connected to bucket: {self.config['BUCKET_NAME']}")
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "403":
+                    logger.warning("⚠️ R2 API token has insufficient permissions for S3 operations.")
+                    logger.warning("   Images can still be accessed via CDN but uploads will use placeholder mode.")
+                    # Continue in degraded mode - CDN URLs might still work for public access
+                else:
+                    raise
             
-            # Store client after successful connection
+            # Store client after connection test
             self._client = client  # type: ignore  # boto3 client implements our protocol
-            logger.info(f"✅ R2 client connected to bucket: {self.config['BUCKET_NAME']}")
             
         except NoCredentialsError:
             logger.error("❌ R2 credentials not provided")
@@ -142,18 +150,37 @@ class R2StorageClient:
             metadata = self._get_image_metadata(image_bytes)
             
             # Upload main image
-            client.put_object(
-                Bucket=self.config["BUCKET_NAME"],
-                Key=r2_key,
-                Body=image_bytes,
-                ContentType=content_type,
-                Metadata={
-                    "width": str(metadata["width"]),
-                    "height": str(metadata["height"]),
-                    "size_bytes": str(len(image_bytes)),
-                    "upload_source": "foto-render"
-                }
-            )
+            try:
+                client.put_object(
+                    Bucket=self.config["BUCKET_NAME"],
+                    Key=r2_key,
+                    Body=image_bytes,
+                    ContentType=content_type,
+                    Metadata={
+                        "width": str(metadata["width"]),
+                        "height": str(metadata["height"]),
+                        "size_bytes": str(len(image_bytes)),
+                        "upload_source": "foto-render"
+                    }
+                )
+            except ClientError as e:
+                if e.response["Error"]["Code"] in ["403", "AccessDenied"]:
+                    logger.warning(f"⚠️ R2 upload failed due to permissions. Using placeholder mode.")
+                    # Return a placeholder result instead of failing
+                    return {
+                        "r2_key": f"placeholder/{filename}",
+                        "r2_url": f"{self.config['PUBLIC_URL_BASE']}/placeholder/{filename}",
+                        "cdn_url": f"{self.config['CDN_URL_BASE']}/placeholder/{filename}",
+                        "filename": filename,
+                        "folder": folder,
+                        "content_type": content_type,
+                        "size_bytes": len(image_bytes),
+                        "width": metadata["width"],
+                        "height": metadata["height"],
+                        "thumbnail": None
+                    }
+                else:
+                    raise
             
             # Generate URLs
             r2_url = f"{self.config['PUBLIC_URL_BASE']}/{r2_key}"

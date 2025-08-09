@@ -59,7 +59,7 @@ const convertApiModelToUiModel = (
     displayName: apiModel.display_name,
     description: apiModel.description || undefined,
     modelType:
-      (apiModel.type?.toUpperCase() as 'SDXL' | 'SD15' | 'FLUX' | 'OTHER')
+      (apiModel.model_type?.toUpperCase() as 'SDXL' | 'SD15' | 'FLUX' | 'OTHER')
       || 'SDXL',
     baseModel,
     isGated: apiModel.is_gated,

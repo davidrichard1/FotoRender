@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense, useMemo } from 'react'
-import { getPrompts } from '@/lib/api'
+import { getPrompts, deletePrompt } from '@/lib/api'
 import { ImageViewer } from '@/components/image'
 import { CachedImage } from '@/components/image/CachedImage'
 import { Badge } from '@/components/ui/badge'
@@ -38,14 +38,36 @@ const InfoIcon = () => (
   </svg>
 )
 
-interface PromptCardProps {
-  prompt: any
-  index: number
-  onImageView: (prompt: any, index: number) => void
+const TrashIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+)
+
+interface PromptData {
+  id: string
+  title: string
+  prompt: string
+  negative_prompt?: string
+  description?: string
+  image_url: string
+  image_r2_url?: string
+  thumbnail_url?: string
+  created_at: string
+  tags?: string[]
+  is_public?: boolean
 }
 
-function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
-  const { showSuccess, showError } = useToast()
+interface PromptCardProps {
+  prompt: PromptData
+  index: number
+  onImageView: (prompt: PromptData, index: number) => void
+  onDelete: (promptId: string) => void
+  onViewDetails: (prompt: PromptData, index: number) => void
+}
+
+function PromptCard({ prompt, index, onImageView, onDelete, onViewDetails }: PromptCardProps) {
+  const { showSuccess } = useToast()
 
   const handleDownload = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -59,19 +81,26 @@ function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
     showSuccess('Download started!')
   }
 
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (confirm(`Are you sure you want to delete "${prompt.title}"? This action cannot be undone.`)) {
+      onDelete(prompt.id)
+    }
+  }
+
   const handleImageClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     onImageView(prompt, index)
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
-  }
+  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
 
   return (
     <Card className="bg-[#161B22] border-[#30363D] overflow-hidden hover:border-[#00D4AA]/50 transition-all duration-200 group">
@@ -101,14 +130,23 @@ function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
               <EyeIcon />
               <span className="ml-2 font-medium">Preview</span>
             </Button>
-            <Button
+            {/* <Button
               size="sm"
               variant="ghost"
               className="bg-black/60 hover:bg-black/80 text-white/70 hover:text-white border-0 p-2"
               onClick={handleDownload}
             >
               <DownloadIcon />
-            </Button>
+            </Button> */}
+            {/* <Button
+              size="sm"
+              variant="ghost"
+              className="bg-red-900/60 hover:bg-red-800/80 text-red-300 hover:text-red-200 border-0 p-2"
+              onClick={handleDelete}
+              title="Delete prompt"
+            >
+              <TrashIcon />
+            </Button> */}
           </div>
         </div>
 
@@ -142,13 +180,13 @@ function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 border-t border-[#30363D]">
-          <Link
-            href={`/prompts/${prompt.id}`}
+          <button
+            onClick={() => onViewDetails(prompt, index)}
             className="text-xs text-[#00D4AA] hover:underline flex items-center gap-1"
           >
             <InfoIcon />
             View Details
-          </Link>
+          </button>
           
           <div className="flex items-center gap-2">
             <Button
@@ -167,6 +205,15 @@ function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
             >
               <DownloadIcon />
             </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-red-500 hover:text-red-300"
+              onClick={handleDelete}
+              title="Delete prompt"
+            >
+              <TrashIcon />
+            </Button>
           </div>
         </div>
       </div>
@@ -175,12 +222,33 @@ function PromptCard({ prompt, index, onImageView }: PromptCardProps) {
 }
 
 function PromptsPageClient() {
-  const [prompts, setPrompts] = useState<any[]>([])
+  const [prompts, setPrompts] = useState<PromptData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedImage, setSelectedImage] = useState<any | null>(null)
+  const [selectedImage, setSelectedImage] = useState<PromptData | null>(null)
   const [showImageViewer, setShowImageViewer] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [showDetailsInViewer, setShowDetailsInViewer] = useState(false)
+  const { showSuccess, showError } = useToast()
+
+  const handleDeletePrompt = async (promptId: string) => {
+    try {
+      const { error } = await deletePrompt(promptId)
+      
+      if (error) {
+        showError(`Failed to delete prompt: ${error}`)
+        return
+      }
+      
+      // Remove the prompt from local state
+      setPrompts(prevPrompts => prevPrompts.filter(p => p.id !== promptId))
+      showSuccess('Prompt deleted successfully')
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      showError(`Failed to delete prompt: ${errorMessage}`)
+    }
+  }
 
   // Image preloading is handled by SmartImage component automatically
 
@@ -194,8 +262,9 @@ function PromptsPageClient() {
           return
         }
         setPrompts(data?.prompts || [])
-      } catch (err: any) {
-        setError(err.message || 'Failed to load prompts')
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load prompts'
+        setError(errorMessage)
       } finally {
         setLoading(false)
       }
@@ -204,10 +273,15 @@ function PromptsPageClient() {
     fetchPromptsData()
   }, [])
 
-  const handleImageView = (prompt: any, index?: number) => {
+  const handleImageView = (prompt: PromptData, index?: number) => {
     // Find the index if not provided
     const promptIndex = index !== undefined ? index : prompts.findIndex(p => p.id === prompt.id)
     setCurrentImageIndex(promptIndex)
+    
+    // Reset details flag for regular image clicks (will be set to true by View Details button)
+    if (!showDetailsInViewer) {
+      setShowDetailsInViewer(false)
+    }
     
     // Debug logging
     console.log('ImageViewer URLs:', {
@@ -218,37 +292,13 @@ function PromptsPageClient() {
       using_url: prompt.image_url
     })
     
-    // Convert prompt to ImageViewer format
-    const imageViewerData = {
-      id: prompt.id,
-      url: prompt.image_url,
-      fallbackUrl: prompt.image_r2_url, // Add fallback URL
-      title: prompt.title,
-      description: prompt.description || '',
-      originalUrl: prompt.image_url,
-      platform: 'foto-render',
-      isPrivate: !prompt.is_public,
-      isFavorite: true,
-      userId: 'current-user',
-      createdAt: prompt.created_at,
-      updatedAt: prompt.created_at,
-      tags: prompt.tags?.map((tag: string) => ({ name: tag, color: '#00D4AA' })) || [],
-      parameters: {
-        prompt: prompt.prompt,
-        negative_prompt: prompt.negative_prompt || '',
-        width: 1024,
-        height: 1024,
-        steps: 30,
-        guidance_scale: 7.5,
-        sampler: 'DPM++ 2M SDE Karras',
-        model: 'Unknown',
-        seed: -1,
-        clip_skip: null,
-      }
-    }
-    
-    setSelectedImage(imageViewerData)
+    setSelectedImage(prompt)
     setShowImageViewer(true)
+  }
+
+  const handleViewDetails = (prompt: PromptData, index: number) => {
+    setShowDetailsInViewer(true)
+    handleImageView(prompt, index)
   }
 
   const navigateImage = (direction: 'prev' | 'next') => {
@@ -266,23 +316,30 @@ function PromptsPageClient() {
     setCurrentImageIndex(newIndex)
   }
 
-  // Memoized image data for ImageViewer - only changes when URL actually changes
+  // Convert PromptData to Image format for ImageViewer
   const currentImageData = useMemo(() => {
-    if (!selectedImage || !prompts[currentImageIndex]) return selectedImage
+    if (!selectedImage || !prompts[currentImageIndex]) return null
     
     const currentPrompt = prompts[currentImageIndex]
-    const currentUrl = currentPrompt.image_url
-    
-    // Only create new object if URL is different
-    if (selectedImage.url === currentUrl) {
-      return selectedImage
-    }
     
     return {
-      ...selectedImage,
-      url: currentUrl,
-      title: currentPrompt.title,
       id: currentPrompt.id,
+      url: currentPrompt.image_url,
+      fallbackUrl: currentPrompt.image_r2_url,
+      title: currentPrompt.title,
+      description: currentPrompt.description || '',
+      originalUrl: currentPrompt.image_url,
+      platform: 'foto-render',
+      isPrivate: !currentPrompt.is_public,
+      isFavorite: true,
+      userId: 'current-user',
+      tags: currentPrompt.tags?.map((tag: string) => ({ name: tag, color: '#00D4AA' })) || [],
+      createdAt: currentPrompt.created_at,
+      updatedAt: currentPrompt.created_at,
+      // Add prompt-specific data
+      prompt: currentPrompt.prompt,
+      negative_prompt: currentPrompt.negative_prompt || '',
+      isPromptData: true // Flag to indicate this is prompt data
     }
   }, [selectedImage, prompts, currentImageIndex])
 
@@ -356,6 +413,8 @@ function PromptsPageClient() {
                 prompt={prompt}
                 index={index}
                 onImageView={handleImageView}
+                onDelete={handleDeletePrompt}
+                onViewDetails={handleViewDetails}
               />
             ))}
           </div>
@@ -363,12 +422,13 @@ function PromptsPageClient() {
       </div>
 
       {/* Image Viewer Modal */}
-      {showImageViewer && selectedImage && prompts.length > 0 && (
+      {showImageViewer && selectedImage && prompts.length > 0 && currentImageData && (
         <ImageViewer
           image={currentImageData}
           onClose={() => {
             setShowImageViewer(false)
             setSelectedImage(null)
+            setShowDetailsInViewer(false) // Reset details flag
           }}
           onToggleFavorite={() => {}} // No-op since already favorited
           onEdit={() => {}} // No-op for now
@@ -378,6 +438,7 @@ function PromptsPageClient() {
           totalCount={prompts.length}
           hasPrevious={prompts.length > 1}
           hasNext={prompts.length > 1}
+          showDetailsDefault={showDetailsInViewer}
         />
       )}
     </div>

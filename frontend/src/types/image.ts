@@ -18,6 +18,10 @@ export interface Image {
   tags: { name: string; color?: string }[]
   createdAt: string
   updatedAt: string
+  // Prompt-specific fields
+  prompt?: string
+  negative_prompt?: string
+  isPromptData?: boolean
 }
 
 export interface Tag {

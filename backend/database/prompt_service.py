@@ -4,6 +4,7 @@ Manages favorite prompts with R2 image storage integration
 """
 
 import logging
+import uuid
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from sqlalchemy import select, update, delete, func, or_
@@ -21,7 +22,14 @@ class FavoritePromptService:
     
     def __init__(self, db_client: Optional[DatabaseClient] = None):
         self.db_client = db_client
-        self.r2_client = R2StorageClient()
+        try:
+            self.r2_client = R2StorageClient()
+            if not self.r2_client.is_available():
+                logger.error("R2 storage client not available. Check R2 configuration.")
+                self.r2_client = None
+        except Exception as e:
+            logger.error(f"Failed to initialize R2 client: {e}")
+            self.r2_client = None
         self.image_processor = ImageProcessor()
     
     async def _get_client(self):
@@ -44,13 +52,28 @@ class FavoritePromptService:
         try:
             client = await self._get_client()
             
-            # Upload image to R2
-            upload_result = self.r2_client.upload_image(
-                image_data=image_data,
-                folder="prompts",
-                content_type="image/png",
-                generate_thumbnail=True
-            )
+            # Check if R2 client is available
+            upload_result = None
+            if self.r2_client is None or not self.r2_client.is_available():
+                logger.warning("R2 storage client not available. Saving prompt without image.")
+                # Create a minimal upload result without actual R2 storage
+                upload_result = {
+                    "r2_key": f"local/prompt_{uuid.uuid4()}.png",
+                    "r2_url": "data:image/png;base64,placeholder",  # Placeholder URL for NOT NULL constraint
+                    "cdn_url": "data:image/png;base64,placeholder",  # Placeholder URL for NOT NULL constraint
+                    "width": 1024,  # Default dimensions
+                    "height": 1024,
+                    "size_bytes": len(image_data) if image_data else 0,
+                    "thumbnail": None
+                }
+            else:
+                # Upload image to R2
+                upload_result = self.r2_client.upload_image(
+                    image_data=image_data,
+                    folder="prompts",
+                    content_type="image/png",
+                    generate_thumbnail=True
+                )
             
             # Connect to model if provided
             model_id = None
@@ -145,7 +168,7 @@ class FavoritePromptService:
             logger.error(f"❌ Failed to create favorite prompt: {e}")
             # Clean up uploaded image if database creation failed
             try:
-                if 'upload_result' in locals():
+                if 'upload_result' in locals() and self.r2_client is not None:
                     self.r2_client.delete_image(upload_result["r2_key"])
             except:
                 pass
@@ -284,40 +307,51 @@ class FavoritePromptService:
                 if not prompt:
                     return None
                 
+                # Access all attributes while still in session context
+                # Handle model relationship safely
+                model_data = None
+                if prompt.model:
+                    model_data = {
+                        "filename": prompt.model.filename,
+                        "display_name": prompt.model.display_name
+                    }
+                
+                prompt_data = {
+                    "id": prompt.id,
+                    "title": prompt.title,
+                    "prompt": prompt.prompt,
+                    "negative_prompt": prompt.negative_prompt,
+                    "description": prompt.description,
+                    "image_url": prompt.image_cdn_url or prompt.image_r2_url,
+                    "thumbnail_url": prompt.thumbnail_cdn_url,
+                    "width": prompt.width,
+                    "height": prompt.height,
+                    "steps": prompt.steps,
+                    "guidance_scale": prompt.guidance_scale,
+                    "seed": prompt.seed,
+                    "sampler": prompt.sampler,
+                    "clip_skip": prompt.clip_skip,
+                    "loras_used": prompt.loras_used,
+                    "model": model_data,
+                    "tags": prompt.tags,
+                    "category": prompt.category,
+                    "is_public": prompt.is_public,
+                    "is_featured": prompt.is_featured,
+                    "usage_count": prompt.usage_count,
+                    "like_count": prompt.like_count,
+                    "view_count": prompt.view_count,
+                    "created_at": prompt.created_at.isoformat(),
+                    "updated_at": prompt.updated_at.isoformat()
+                }
+                
                 # Increment view count
                 prompt.view_count += 1
                 await session.commit()
-            
-            return {
-                "id": prompt.id,
-                "title": prompt.title,
-                "prompt": prompt.prompt,
-                "negative_prompt": prompt.negative_prompt,
-                "description": prompt.description,
-                "image_url": prompt.image_cdn_url or prompt.image_r2_url,
-                "thumbnail_url": prompt.thumbnail_cdn_url,
-                "width": prompt.width,
-                "height": prompt.height,
-                "steps": prompt.steps,
-                "guidance_scale": prompt.guidance_scale,
-                "seed": prompt.seed,
-                "sampler": prompt.sampler,
-                "clip_skip": prompt.clip_skip,
-                "loras_used": prompt.loras_used,
-                "model": {
-                    "filename": prompt.model.filename,
-                    "display_name": prompt.model.display_name
-                } if prompt.model else None,
-                "tags": prompt.tags,
-                "category": prompt.category,
-                "is_public": prompt.is_public,
-                "is_featured": prompt.is_featured,
-                "usage_count": prompt.usage_count,
-                "like_count": prompt.like_count,
-                "view_count": prompt.view_count,
-                "created_at": prompt.created_at.isoformat(),
-                "updated_at": prompt.updated_at.isoformat()
-            }
+                
+                # Update the view_count in the returned data
+                prompt_data["view_count"] = prompt.view_count
+                
+            return prompt_data
             
         except Exception as e:
             logger.error(f"❌ Failed to get favorite prompt: {e}")
@@ -411,7 +445,7 @@ class FavoritePromptService:
                 await session.commit()
                 
                 # Delete from R2 storage
-                if prompt.image_r2_key:
+                if prompt.image_r2_key and self.r2_client is not None:
                     self.r2_client.delete_image(
                         prompt.image_r2_key, 
                         delete_thumbnail=True

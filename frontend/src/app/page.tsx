@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, Suspense } from 'react'
 import NextImage from 'next/image'
 import { ImageViewer } from '@/components/image'
-import { CachedImage } from '@/components/image/CachedImage'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Accordion } from '@/components/ui/accordion'
@@ -205,6 +204,37 @@ export default function HomePage() {
 
   useEffect(() => {
     setDataPromises(createDataPromises())
+    
+    // Check for auto-fill prompt data from "Use Prompt" functionality
+    const autoFillData = localStorage.getItem('auto_fill_prompt')
+    if (autoFillData) {
+      try {
+        const promptData = JSON.parse(autoFillData)
+        // Only apply if the data is recent (within 30 seconds) to avoid stale data
+        const isRecent = promptData.timestamp && (Date.now() - promptData.timestamp < 30000)
+        
+        if (isRecent && promptData.positive_prompt) {
+          console.log('🎯 Auto-filling prompt from saved data:', promptData)
+          setParams(prev => ({
+            ...prev,
+            prompt: promptData.positive_prompt || prev.prompt,
+            negative_prompt: promptData.negative_prompt || prev.negative_prompt
+          }))
+          
+          // Show success message
+          showSuccess('Prompt auto-filled from saved prompt!')
+          
+          // Clear the stored data so it doesn't auto-fill again
+          localStorage.removeItem('auto_fill_prompt')
+        } else {
+          // Remove stale data
+          localStorage.removeItem('auto_fill_prompt')
+        }
+      } catch (error) {
+        console.error('Failed to parse auto-fill data:', error)
+        localStorage.removeItem('auto_fill_prompt')
+      }
+    }
   }, [])
 
   // Load model-specific prompt defaults

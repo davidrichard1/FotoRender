@@ -411,7 +411,7 @@ export default function CompatibilityManager() {
                                 {model.display_name}
                               </div>
                               <div className="text-xs text-gray-500">
-                                {model.base_model} • {model.type}
+                                {model.base_model} • {model.model_type}
                               </div>
                             </div>
                             <Button

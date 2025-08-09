@@ -238,7 +238,7 @@ export default function AdminPage() {
       filename: model.filename,
       display_name: model.displayName,
       path: `models/${model.filename}`,
-      type: model.modelType.toLowerCase(),
+      model_type: model.modelType.toLowerCase(),
       capability: 'text-to-image',
       source: 'local',
       base_model: model.baseModel.toLowerCase().replace('_', '-'),

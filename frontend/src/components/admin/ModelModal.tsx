@@ -215,7 +215,7 @@ export default function ModelModal({
         setFormData({
           filename: model.filename,
           display_name: model.display_name,
-          type: model.type,
+          type: model.model_type,
           base_model: model.base_model,
           file_format: 'safetensors', // Default since API doesn't provide this yet
           capability: model.capability,
